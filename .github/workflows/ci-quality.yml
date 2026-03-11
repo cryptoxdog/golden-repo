@@ -137,6 +137,7 @@ jobs:
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.organization=${{ vars.SONAR_ORG }}
             -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.qualitygate.wait=true
 
   # ===========================================================================
   # SECRETS-SCAN — GitGuardian Secrets Detection
@@ -251,6 +252,39 @@ jobs:
   # ===========================================================================
   # QUALITY-GATE — Aggregation job (add to your ci-complete "needs:")
   # ===========================================================================
+  # ===========================================================================
+  # SHELLCHECK — Shell Script Linting
+  # ===========================================================================
+  shellcheck:
+    name: Shell Script Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+      - name: Run shellcheck
+        run: |
+          find . -name "*.sh" -not -path "./.git/*" | xargs --no-run-if-empty shellcheck --severity=warning
+
+  # ===========================================================================
+  # SECRET-SCAN — Bandit Static Analysis
+  # ===========================================================================
+  secret-scan:
+    name: Secret Scanning (bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run bandit
+        run: |
+          pip install bandit
+          bandit -r . -ll --exclude ./.venv,./node_modules,./.git
+
+  # ===========================================================================
+  # QUALITY-GATE — Aggregation job (add to your ci-complete "needs:")
+  # ===========================================================================
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
@@ -261,6 +295,8 @@ jobs:
       - secrets-scan
       - coverage
       - yaml-validate
+      - shellcheck
+      - secret-scan
     if: always()
 
     steps:
@@ -275,7 +311,9 @@ jobs:
           echo "  ├─ SonarCloud:     ${{ needs.sonarcloud.result }}"
           echo "  ├─ Secrets Scan:   ${{ needs.secrets-scan.result }}"
           echo "  ├─ Coverage:       ${{ needs.coverage.result }}"
-          echo "  └─ YAML Validate:  ${{ needs.yaml-validate.result }}"
+          echo "  ├─ YAML Validate:  ${{ needs.yaml-validate.result }}"
+          echo "  ├─ ShellCheck:     ${{ needs.shellcheck.result }}"
+          echo "  └─ Secret Scan:    ${{ needs.secret-scan.result }}"
           echo ""
 
           # Fail on critical gates
