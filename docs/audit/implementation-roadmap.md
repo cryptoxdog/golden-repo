@@ -54,7 +54,7 @@
 - [ ] Rate limiting prevents API throttling
 - [ ] Full audit completes within 30 minutes
 - [ ] False positive rate documented per category
-- [ ] JSON output validates against `06-REPORT-SCHEMA.json`
+- [ ] JSON output validates against `report-schema.json`
 
 ### Risk Tier: T1 (read-only analysis)
 
@@ -113,7 +113,7 @@
 
 ### Tasks
 1. Implement Prometheus metrics endpoint in the orchestrator
-2. Deploy Grafana dashboard from `10-METRICS-DASHBOARD.md`
+2. Deploy Grafana dashboard from `metrics-dashboard.md`
 3. Track: gap count, fix velocity, debt ratio, regression rate
 4. Set up alerts: P0 count >0, debt ratio >10%, regression rate >20%
 5. Implement weekly automated report generation

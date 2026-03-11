@@ -3,7 +3,7 @@
 ## Overview
 
 Each template is designed to be injected as the `user` message in a Perplexity API call,
-paired with the system prompt from `01-PERPLEXITY-SUPER-PROMPT.md`.
+paired with the system prompt from `super-prompt.md`.
 
 ---
 

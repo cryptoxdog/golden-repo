@@ -75,7 +75,7 @@ Fix: Verify file content is being sent; check API key validity
 1. Check `PERPLEXITY_API_KEY` validity
 2. Check Perplexity API status: https://status.perplexity.ai
 3. Verify network connectivity from runner
-4. Fall back to manual audit using `02-PROMPT-TEMPLATES.md`
+4. Fall back to manual audit using `prompt-templates.md`
 
 ### P0 Finding in Production
 1. Pipeline auto-creates GitHub issue with `P0` label

@@ -13,17 +13,17 @@
 
 | File | Purpose |
 |------|--------|
-| `00-MASTER-README.md` | Master guide and orientation |
-| `01-PERPLEXITY-SUPER-PROMPT.md` | God-Mode super prompt template for Perplexity API |
-| `02-PROMPT-TEMPLATES.md` | 12 specialized prompt templates per audit category |
+| `README.md` | Master guide and orientation |
+| `super-prompt.md` | God-Mode super prompt template for Perplexity API |
+| `prompt-templates.md` | 12 specialized prompt templates per audit category |
 | `03-PIPELINE-CONFIG.yaml` | Pipeline configuration, thresholds, scheduling |
-| `04-IMPLEMENTATION-ROADMAP.md` | 6-phase rollout plan with milestones |
+| `implementation-roadmap.md` | 6-phase rollout plan with milestones |
 | `05-AGENT-ORCHESTRATOR.py` | Production Python orchestrator |
-| `06-REPORT-SCHEMA.json` | JSON schema for standardized audit reports |
-| `07-ADR-COMPLIANCE-MATRIX.md` | Maps all 56 L9 ADRs to audit checks |
+| `report-schema.json` | JSON schema for standardized audit reports |
+| `adr-compliance-matrix.md` | Maps all 56 L9 ADRs to audit checks |
 | `08-CI-INTEGRATION.yaml` | GitHub Actions workflow |
-| `09-RUNBOOK.md` | Operational runbook |
-| `10-METRICS-DASHBOARD.md` | Grafana dashboard config |
+| `runbook.md` | Operational runbook |
+| `metrics-dashboard.md` | Grafana dashboard config |
 
 ## Architecture
 
