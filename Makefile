@@ -70,5 +70,32 @@ agent-fix:
 build:
 	docker build -t $$(basename $$(pwd)):latest .
 
+# ============================================================
+# DOCKER — LOCAL & PRODUCTION
+# ============================================================
+dev:
+	docker compose up -d
+
+dev-build:
+	docker compose up -d --build
+
+dev-down:
+	docker compose down
+
+dev-clean:
+	docker compose down -v --remove-orphans
+
+prod:
+	docker compose -f docker-compose.prod.yml up -d
+
+prod-build:
+	docker compose -f docker-compose.prod.yml up -d --build
+
+prod-down:
+	docker compose -f docker-compose.prod.yml down
+
+prod-logs:
+	docker compose -f docker-compose.prod.yml logs -f
+
 deploy:
 	./scripts/deploy.sh $(ENV)
