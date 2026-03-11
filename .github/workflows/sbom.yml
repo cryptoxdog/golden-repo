@@ -1,5 +1,3 @@
-# Add to .github/workflows/ci-quality.yml or create .github/workflows/sbom.yml
-
 name: SBOM Generation
 
 on:
@@ -45,7 +43,7 @@ jobs:
           assert 'metadata' in sbom, 'SBOM missing metadata'
           assert 'components' in sbom, 'SBOM missing components'
           assert len(sbom['components']) > 0, 'SBOM has no components'
-          print(f'SBOM valid: {len(sbom["components"])} components')
+          print(f'SBOM valid: {len(sbom[\"components\"])} components')
           "
 
       - name: Upload SBOM artifacts

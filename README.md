@@ -78,5 +78,20 @@ tools/deploy/deploy.sh            # Deploy to VPS
 | `SONAR_PROJECT_KEY` | `cryptoxdog_YOUR-REPO` |
 | `SONAR_ORG` | `cryptoxdog` |
 
+## CI/CD Workflows
+
+All active workflows in `.github/workflows/`:
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ci.yml` | push / PR | Base lint (ruff, mypy), audit engine (27 rules), pytest, contract verification |
+| `ci-quality.yml` | push / PR | Quality gates — shellcheck, bandit, ruff, SonarCloud |
+| `perplexity-audit.yml` | schedule | Automated tech debt audit via Perplexity API |
+| `sbom.yml` | push / PR / release | Software Bill of Materials generation (CycloneDX JSON + XML) |
+| `secret-rotation-reminder.yml` | quarterly cron | Opens a GitHub Issue checklist for rotating all secrets |
+| `slsa-build.yml` | version tags | SLSA Build Level 3 provenance + attestation via GHCR |
+| `dependency-review.yml` | PR to main | Blocks PRs with moderate+ CVEs or disallowed licenses |
+| `release-drafter.yml` | push to main / PR | Auto-drafts release notes from PR labels |
+
 ---
 *Part of the L9 Constellation — [venture-forge-toolbox](https://github.com/cryptoxdog/venture-forge-toolbox)*
