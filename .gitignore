@@ -29,3 +29,9 @@ htmlcov/
 # Misc
 .DS_Store
 *.log
+
+# Perplexity Audit Reports (generated output)
+reports/perplexity_audit/*.json
+reports/perplexity_audit/*.md
+reports/perplexity_audit/phase_packs/
+!reports/perplexity_audit/.gitkeep
