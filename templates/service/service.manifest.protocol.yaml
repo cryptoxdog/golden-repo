@@ -1,0 +1,24 @@
+service:
+  name: example-service
+  protocol_version: '1.1'
+  ingress_mode: gate-first
+  http_surfaces:
+    - path: /v1/execute
+      mandatory: true
+    - path: /v1/health
+      mandatory: true
+    - path: /v1/readiness
+      mandatory: true
+    - path: /metrics
+      mandatory: false
+  required_env:
+    - name: L9_ENVIRONMENT
+    - name: L9_RUNTIME_MODE
+    - name: L9_NODE_NAME
+    - name: L9_SERVICE_NAME
+    - name: L9_SIGNING_ALGORITHM
+  registration:
+    required: true
+    contract: contracts/node_registration_contract.yaml
+  packet_contract: contracts/packet_envelope_v1.yaml
+  node_contract: contracts/conformant_node_contract.yaml
