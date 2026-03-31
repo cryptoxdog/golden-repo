@@ -20,7 +20,6 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 REPO_ROOT = Path(__file__).parent.parent
 ENGINE_DIR = REPO_ROOT / "engine"
@@ -35,7 +34,7 @@ class Finding:
     message: str
     file: str
     line: int
-    fix_hint: Optional[str] = None
+    fix_hint: str | None = None
 
 
 @dataclass
@@ -166,7 +165,7 @@ def check_security(files: list[Path], result: AuditResult):
         # Rule 7: f-string in Cypher (LIMIT/SKIP/WHERE values)
         for i, line in enumerate(lines, 1):
             # Detect f-strings with LIMIT/SKIP value interpolation
-            if re.search(r'f["'].*LIMIT\s*\{', line) or re.search(r'f["'].*SKIP\s*\{', line):
+            if re.search(r"f[\"'].*LIMIT\s*\{", line) or re.search(r"f[\"'].*SKIP\s*\{", line):
                 counter += 1
                 result.add(
                     severity="CRITICAL", code=f"C-{counter:03d}", rule=7,
@@ -208,7 +207,7 @@ def check_imports(files: list[Path], result: AuditResult):
                     result.add(
                         severity="HIGH", code=f"H-{counter:03d}", rule=11,
                         group="imports",
-                        message=f"FastAPI import in engine/ -- engine never touches HTTP",
+                        message="FastAPI import in engine/ -- engine never touches HTTP",
                         file=str(rel), line=node.lineno,
                         fix_hint="Remove. Engine receives (tenant, payload) from chassis."
                     )

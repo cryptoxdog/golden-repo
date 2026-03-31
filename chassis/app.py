@@ -181,6 +181,7 @@ class _NoOpLifecycle(LifecycleHook):
         logger.warning("No LifecycleHook configured — chassis running in stub mode")
 
     async def shutdown(self) -> None:
+        # No-op: stub mode has no resources to tear down; cleanup is handled by the engine hook.
         pass
 
     async def execute(
@@ -263,12 +264,7 @@ def create_app(
 
         # Gate self-registration — non-fatal, runs after engine is fully up
         if cfg.gate_registration_enabled and cfg.gate_url:
-            await register_from_env(
-                spec_path=cfg.gate_node_spec_path or None,
-                gate_url=cfg.gate_url,
-                admin_token=cfg.gate_admin_token or None,
-                retries=cfg.gate_register_retries,
-            )
+            await register_from_env(spec_path=cfg.gate_node_spec_path or None)
         else:
             logger.debug("gate_client.skipped — GATE_URL not configured")
 
@@ -300,7 +296,15 @@ def create_app(
 
     # --- POST /v1/execute  (single ingress) ---------------------------------
 
-    @application.post("/v1/execute", response_model=ExecuteResponse)
+    @application.post(
+        "/v1/execute",
+        response_model=ExecuteResponse,
+        responses={
+            400: {"description": "Bad Request — unknown or invalid action"},
+            422: {"description": "Unprocessable Entity — payload validation failure"},
+            500: {"description": "Internal Server Error — unhandled engine error"},
+        },
+    )
     async def execute(request: ExecuteRequest) -> ExecuteResponse | JSONResponse:
         """
         Universal action endpoint — single ingress for every engine action.
