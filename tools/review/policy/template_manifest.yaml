@@ -8,6 +8,7 @@ required_files:
   - path: "engine/handlers.py"
   - path: "tools/review/policy/review_policy.yaml"
   - path: "tools/review/policy/architecture.yaml"
+  - path: "tools/review/policy/review_exceptions.yaml"
   - path: ".github/workflows/ai-review.yml"
 
 required_directories:
@@ -16,6 +17,7 @@ required_directories:
   - path: "tools/review"
   - path: "tools/review/analyzers"
   - path: "tools/review/policy"
+  - path: "tools/review/evals"
 
 protected_files:
   - path: ".github/workflows/ai-review.yml"

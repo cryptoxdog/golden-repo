@@ -1,37 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from typing import Awaitable, Callable
 
-from engine.compliance.prohibited_factors import contains_prohibited_factors
-from engine.config.loader import SpecLoader
-from engine.core.errors import EngineError
-from engine.models.action_models import DescribePayload, ExecuteActionPayload
-from engine.services.action_service import ActionService
+from chassis.router import register_handler
 
-Handler = Callable[[str, dict], dict]
+DomainHandler = Callable[[str, dict], Awaitable[dict]]
+_registry: dict[str, DomainHandler] = {}
 
 
-def register_all(registrar: dict[str, Handler] | None = None) -> dict[str, Handler]:
-    registry = registrar if registrar is not None else {}
-    registry["execute"] = handle_execute
-    registry["describe"] = handle_describe
-    return registry
+def register_action_handler(action: str, handler: DomainHandler) -> None:
+    normalized = action.strip().lower()
+    _registry[normalized] = handler
+    register_handler(normalized, lambda tenant, payload=None, _a=normalized: _registry[_a](tenant, payload))
 
 
-async def handle_execute(tenant: str, payload: dict) -> dict:
-    validated = ExecuteActionPayload.model_validate(payload)
-    if contains_prohibited_factors(validated.parameters):
-        raise EngineError(
-            action="execute",
-            tenant=tenant,
-            client_message="Payload contains prohibited factors",
-            detail="Prohibited keys are not permitted in execute payloads",
-        )
-    service = ActionService(SpecLoader())
-    return service.execute_action(validated.action_name, validated.parameters)
-
-
-async def handle_describe(tenant: str, payload: dict) -> dict:
-    DescribePayload.model_validate(payload)
-    service = ActionService(SpecLoader())
-    return service.describe()
+def register_all() -> None:
+    return None

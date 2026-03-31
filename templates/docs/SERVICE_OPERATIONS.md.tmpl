@@ -1,5 +1,7 @@
-# __SERVICE_NAME__ operations
+# Service Operations
 
-- run predeploy check before serving traffic
-- deploy through GitHub Actions workflow
-- keep metrics disabled publicly unless intentionally exposed
+Every generated node must pass:
+- `python scripts/predeploy_check.py`
+- `GET /v1/health`
+- `GET /v1/readiness`
+- protocol conformance checklist in `contracts/conformance_checklist.md`

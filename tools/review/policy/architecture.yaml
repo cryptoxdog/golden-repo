@@ -10,7 +10,10 @@ layers:
       - "engine.models"
       - "engine.compliance"
       - "engine.core"
-      - "collections.abc"
+      - "structlog"
+      - "typing"
+      - "pydantic"
+      - "chassis.router"
     forbidden_import_prefixes:
       - "fastapi"
       - "starlette"
@@ -27,6 +30,9 @@ layers:
       - "engine.config"
       - "engine.compliance"
       - "engine.core"
+      - "structlog"
+      - "typing"
+      - "pydantic"
     forbidden_import_prefixes:
       - "engine.handlers"
       - "fastapi"
@@ -39,8 +45,8 @@ layers:
       - "engine/models/**"
     allowed_import_prefixes:
       - "engine.core"
-      - "pydantic"
       - "typing"
+      - "pydantic"
       - "datetime"
       - "uuid"
     forbidden_import_prefixes:
@@ -57,9 +63,10 @@ layers:
     allowed_import_prefixes:
       - "engine.core"
       - "engine.models"
-      - "pathlib"
-      - "yaml"
+      - "typing"
       - "pydantic"
+      - "yaml"
+      - "pathlib"
     forbidden_import_prefixes:
       - "engine.handlers"
       - "fastapi"
@@ -77,6 +84,7 @@ layers:
       - "datetime"
       - "enum"
       - "pydantic"
+      - "structlog"
     forbidden_import_prefixes:
       - "engine.handlers"
       - "engine.services"
@@ -99,8 +107,6 @@ layers:
       - "fnmatch"
       - "dataclasses"
       - "re"
-      - "argparse"
-      - "jsonschema"
     forbidden_import_prefixes:
       - "engine.handlers"
       - "engine.services"
@@ -111,7 +117,7 @@ handler_contract:
   file: "engine/handlers.py"
   required_functions:
     - "register_all"
-  allowed_signature_regex: "^async def handle_[a-z0-9_]+\\(tenant: str, payload: dict\\) -> dict:$"
+  allowed_signature_regex: '^async def handle_[a-z0-9_]+\(tenant: str, payload: dict\) -> dict:$'
   required_payload_validation: true
   forbid_raw_payload_access_after_validation: true
 

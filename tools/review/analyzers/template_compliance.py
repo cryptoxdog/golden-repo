@@ -28,7 +28,6 @@ def run(repo_root: Path, manifest_path: Path, context_path: Path) -> ReviewRepor
     manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     context = json.loads(context_path.read_text(encoding="utf-8"))
     findings: list[Finding] = []
-    rationale: list[str] = []
 
     for entry in manifest["required_files"]:
         path = repo_root / entry["path"]
@@ -112,12 +111,12 @@ def run(repo_root: Path, manifest_path: Path, context_path: Path) -> ReviewRepor
             )
         )
 
-    if findings:
-        rationale.append("Template compliance failures detected")
-        verdict = "BLOCK"
-    else:
-        rationale.append("All required files, directories, and symbols are present")
-        verdict = "APPROVE"
+    verdict = "BLOCK" if findings else "APPROVE"
+    rationale = (
+        ["Template compliance failures detected"]
+        if findings
+        else ["All required files, directories, and symbols are present"]
+    )
 
     return ReviewReport(
         dimension="template_compliance",
@@ -135,6 +134,7 @@ def main() -> None:
     parser.add_argument("--context", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
+
     report = run(Path(args.repo_root), Path(args.manifest), Path(args.context))
     report.write(args.output)
 

@@ -25,35 +25,11 @@ def run(policy_path: Path) -> ReviewReport:
     spec = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
 
     if "blocking_checks" not in policy:
-        findings.append(
-            Finding(
-                file=str(policy_path.relative_to(repo_root)),
-                line=1,
-                severity="critical",
-                rule_id="YAML-001",
-                finding="review_policy.yaml must define blocking_checks",
-            )
-        )
+        findings.append(Finding(file=str(policy_path.relative_to(repo_root)), line=1, severity="critical", rule_id="YAML-001", finding="review_policy.yaml must define blocking_checks"))
     if "layers" not in architecture:
-        findings.append(
-            Finding(
-                file=str(architecture_path.relative_to(repo_root)),
-                line=1,
-                severity="critical",
-                rule_id="YAML-002",
-                finding="architecture.yaml must define layers",
-            )
-        )
+        findings.append(Finding(file=str(architecture_path.relative_to(repo_root)), line=1, severity="critical", rule_id="YAML-002", finding="architecture.yaml must define layers"))
     if "required_files" not in manifest:
-        findings.append(
-            Finding(
-                file=str(manifest_path.relative_to(repo_root)),
-                line=1,
-                severity="critical",
-                rule_id="YAML-003",
-                finding="template_manifest.yaml must define required_files",
-            )
-        )
+        findings.append(Finding(file=str(manifest_path.relative_to(repo_root)), line=1, severity="critical", rule_id="YAML-003", finding="template_manifest.yaml must define required_files"))
 
     validator = jsonschema.Draft7Validator(spec_schema)
     for error in validator.iter_errors(spec):

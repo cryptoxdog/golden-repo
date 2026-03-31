@@ -1,65 +1,37 @@
-"""Packet routing between internal nodes for the L9 Constellation Runtime."""
-import time
-from constellation.types import (
-    PacketEnvelope, TraceEntry, TerminalResult, ConstellationError, _uid
-)
-from constellation.action_registry import ACTION_MAP, get_action_handler
-from constellation.node_registry import get_node
+from __future__ import annotations
 
-def resolve_initial_node(action: str) -> str:
-    if action not in ACTION_MAP:
-        raise ConstellationError(f"No node registered for action: {action}", status="rejected")
-    return ACTION_MAP[action]
+from typing import Any, Callable
 
-def append_trace(packet: PacketEnvelope, entry: TraceEntry):
-    packet.trace.append(entry)
+from app.config import get_config
+from .packet_envelope import PacketEnvelope
+from .security import verify_signature, ValidationFailure
 
-def route_packet(packet: PacketEnvelope, *, max_hops: int = 20, timeout_ms: float = 60000):
-    """Route a packet through internal nodes until a terminal condition."""
-    start = time.time()
-    current_action = packet.action
-    hops: list[str] = []
+_HANDLERS: dict[str, Callable[..., Any]] = {}
 
-    for _ in range(max_hops):
-        elapsed_ms = (time.time() - start) * 1000
-        if elapsed_ms > timeout_ms:
-            append_trace(packet, TraceEntry(node="router", action=current_action, status="timeout"))
-            raise ConstellationError("Execution timeout exceeded", status="timeout")
 
-        node_name = resolve_initial_node(current_action)
-        node_rec = get_node(node_name)
-        handler = get_action_handler(current_action)
-        hops.append(node_name)
+def register_handler(action: str, fn: Callable[..., Any]) -> None:
+    _HANDLERS[action.strip().lower()] = fn
 
-        hop_start = time.time()
-        try:
-            result = handler(packet)
-        except ConstellationError:
-            raise
-        except Exception as exc:
-            append_trace(packet, TraceEntry(
-                node=node_name, action=current_action, status="error",
-                latency_ms=(time.time() - hop_start) * 1000))
-            raise ConstellationError(str(exc), status="error")
 
-        hop_latency = (time.time() - hop_start) * 1000
-        if isinstance(result, TerminalResult):
-            append_trace(packet, TraceEntry(
-                node=node_name, action=current_action, status="completed",
-                latency_ms=hop_latency))
-            return result, hops
+def inflate_ingress(raw: dict[str, Any]) -> PacketEnvelope:
+    packet = PacketEnvelope.model_validate(raw)
+    cfg = get_config()
+    if packet.address.destination_node != cfg.node_name:
+        raise ValidationFailure("packet destination does not match this node")
+    if packet.header.action not in cfg.allowed_actions:
+        raise ValidationFailure("action not allowed")
+    if packet.header.packet_type not in cfg.allowed_packet_types:
+        raise ValidationFailure("packet_type not allowed")
+    if cfg.require_signature and not verify_signature(packet):
+        raise ValidationFailure("invalid signature")
+    return packet
 
-        if isinstance(result, PacketEnvelope):
-            append_trace(packet, TraceEntry(
-                node=node_name, action=current_action, status="forwarded",
-                latency_ms=hop_latency))
-            current_action = result.action
-            packet.payload = result.payload
-            continue
 
-        append_trace(packet, TraceEntry(
-            node=node_name, action=current_action, status="completed",
-            latency_ms=hop_latency))
-        return TerminalResult(data=result if isinstance(result, dict) else {}), hops
-
-    raise ConstellationError("Max internal hops exceeded", status="error")
+async def execute_handler(packet: PacketEnvelope) -> PacketEnvelope:
+    fn = _HANDLERS[packet.header.action]
+    result = await fn(packet.tenant.org_id, packet.payload)
+    return packet.model_copy(update={
+        "header": packet.header.model_copy(update={"packet_type": "response"}),
+        "address": packet.address.model_copy(update={"destination_node": packet.address.reply_to, "reply_to": packet.address.destination_node}),
+        "payload": result,
+    })

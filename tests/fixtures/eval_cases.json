@@ -1,0 +1,25 @@
+{
+  "cases": [
+    {
+      "name": "template block",
+      "expected_final_verdict": "BLOCK",
+      "reports": [
+        {
+          "dimension": "template_compliance",
+          "verdict": "BLOCK",
+          "confidence": 0.99,
+          "findings": [
+            {
+              "file": "engine/handlers.py",
+              "line": 1,
+              "severity": "critical",
+              "rule_id": "TEMPLATE-004",
+              "finding": "Required symbol 'register_all' is missing"
+            }
+          ],
+          "rationale_summary": ["Template compliance failures detected"]
+        }
+      ]
+    }
+  ]
+}
