@@ -46,8 +46,9 @@ import logging
 import os
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -180,6 +181,7 @@ class _NoOpLifecycle(LifecycleHook):
         logger.warning("No LifecycleHook configured — chassis running in stub mode")
 
     async def shutdown(self) -> None:
+        # No-op: stub mode has no resources to tear down; cleanup is handled by the engine hook.
         pass
 
     async def execute(
@@ -294,7 +296,15 @@ def create_app(
 
     # --- POST /v1/execute  (single ingress) ---------------------------------
 
-    @application.post("/v1/execute", response_model=ExecuteResponse)
+    @application.post(
+        "/v1/execute",
+        response_model=ExecuteResponse,
+        responses={
+            400: {"description": "Bad Request — unknown or invalid action"},
+            422: {"description": "Unprocessable Entity — payload validation failure"},
+            500: {"description": "Internal Server Error — unhandled engine error"},
+        },
+    )
     async def execute(request: ExecuteRequest) -> ExecuteResponse | JSONResponse:
         """
         Universal action endpoint — single ingress for every engine action.

@@ -46,8 +46,9 @@ import logging
 import os
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -262,7 +263,12 @@ def create_app(
 
         # Gate self-registration — non-fatal, runs after engine is fully up
         if cfg.gate_registration_enabled and cfg.gate_url:
-            await register_from_env(spec_path=cfg.gate_node_spec_path or None)
+            await register_from_env(
+                spec_path=cfg.gate_node_spec_path or None,
+                gate_url=cfg.gate_url,
+                admin_token=cfg.gate_admin_token or None,
+                retries=cfg.gate_register_retries,
+            )
         else:
             logger.debug("gate_client.skipped — GATE_URL not configured")
 

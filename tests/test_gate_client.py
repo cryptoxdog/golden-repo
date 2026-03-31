@@ -32,7 +32,6 @@ from chassis.gate_client import (
     register_with_gate,
 )
 
-
 # ── fixtures / helpers ───────────────────────────────────────────────────────
 
 VALID_SPEC_YAML = textwrap.dedent("""    node:
@@ -170,7 +169,7 @@ async def test_register_sends_admin_token(spec_file: Path) -> None:
     with patch("chassis.gate_client.httpx.AsyncClient", return_value=mock_client):
         await register_with_gate(
             gate_url="http://gate:8000",
-            admin_token="super-secret",
+            admin_token="super-secret",  # noqa: S106 — test fixture value, not a real secret
             spec_path=str(spec_file),
         )
 
@@ -207,7 +206,10 @@ async def test_register_retries_on_transport_error(spec_file: Path) -> None:
         side_effect=httpx.TransportError("connection refused")
     )
 
-    with patch("chassis.gate_client.httpx.AsyncClient", return_value=mock_client),          patch("chassis.gate_client.asyncio.sleep", new=AsyncMock()):
+    with (
+        patch("chassis.gate_client.httpx.AsyncClient", return_value=mock_client),
+        patch("chassis.gate_client.asyncio.sleep", new=AsyncMock()),
+    ):
         result = await register_with_gate(
             gate_url="http://gate:8000",
             spec_path=str(spec_file),
@@ -313,9 +315,20 @@ async def test_register_from_env_full_success(spec_file: Path) -> None:
         "GATE_ADMIN_TOKEN": "tok",
         "GATE_REGISTER_RETRIES": "2",
     }
-    with patch.dict(os.environ, env, clear=False),          patch("chassis.gate_client.httpx.AsyncClient", return_value=mock_client):
+    with (
+        patch.dict(os.environ, env, clear=False),
+        patch("chassis.gate_client.httpx.AsyncClient", return_value=mock_client),
+        patch(
+            "chassis.gate_client.register_with_gate",
+            wraps=__import__(
+                "chassis.gate_client", fromlist=["register_with_gate"]
+            ).register_with_gate,
+        ) as mock_rwg,
+    ):
         result = await register_from_env(spec_path=str(spec_file))
 
     assert result is True
     headers_sent = mock_client.post.call_args[1]["headers"]
     assert headers_sent["X-Admin-Token"] == "tok"
+    # Verify GATE_REGISTER_RETRIES="2" is correctly parsed and forwarded
+    assert mock_rwg.call_args[1]["retries"] == 2

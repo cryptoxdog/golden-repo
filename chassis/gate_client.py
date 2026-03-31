@@ -217,10 +217,26 @@ async def register_with_gate(
     return False
 
 
-async def register_from_env(spec_path: str | None = None) -> bool:
+async def register_from_env(
+    spec_path: str | None = None,
+    gate_url: str | None = None,
+    admin_token: str | None = None,
+    retries: int | None = None,
+) -> bool:
     """
-    Convenience wrapper: reads all config from environment variables.
+    Convenience wrapper: reads config from explicit args, falling back to env vars.
     Called directly from chassis lifespan — no import of engine internals.
+
+    Parameters
+    ----------
+    spec_path : str | None
+        Path to node spec YAML; falls back to GATE_NODE_SPEC_PATH env var.
+    gate_url : str | None
+        Gate URL override; falls back to GATE_URL env var.
+    admin_token : str | None
+        Admin token override; falls back to GATE_ADMIN_TOKEN env var.
+    retries : int | None
+        Retry count override; falls back to GATE_REGISTER_RETRIES env var.
 
     Returns True if registration succeeded, False otherwise.
     Gate registration failure is never fatal to engine startup.
@@ -230,17 +246,33 @@ async def register_from_env(spec_path: str | None = None) -> bool:
         logger.info("gate_client.disabled — skipping Gate registration")
         return False
 
-    gate_url = os.getenv("GATE_URL", "")
-    if not gate_url:
+    resolved_url = gate_url or os.getenv("GATE_URL", "")
+    if not resolved_url:
         logger.info(
             "gate_client.no_gate_url"
             " — skipping Gate registration (set GATE_URL to enable)"
         )
         return False
 
+    # Safe-parse retries from env var — fall back to default on invalid value
+    if retries is None:
+        _raw = os.getenv("GATE_REGISTER_RETRIES", "")
+        if _raw:
+            try:
+                retries = int(_raw)
+            except ValueError:
+                logger.warning(
+                    "gate_client.invalid_retries value=%r — using default %d",
+                    _raw,
+                    _DEFAULT_RETRIES,
+                )
+                retries = _DEFAULT_RETRIES
+        else:
+            retries = _DEFAULT_RETRIES
+
     return await register_with_gate(
-        gate_url=gate_url,
-        admin_token=os.getenv("GATE_ADMIN_TOKEN") or None,
+        gate_url=resolved_url,
+        admin_token=admin_token or os.getenv("GATE_ADMIN_TOKEN") or None,
         spec_path=spec_path or os.getenv("GATE_NODE_SPEC_PATH", _DEFAULT_SPEC_PATH),
-        retries=int(os.getenv("GATE_REGISTER_RETRIES", str(_DEFAULT_RETRIES))),
+        retries=retries,
     )
