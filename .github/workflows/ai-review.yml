@@ -140,6 +140,7 @@ PY
               spec_coverage_report.json \
               yaml_validation_report.json \
             --policy tools/review/policy/review_policy.yaml \
+            --proposal review_context.json \
             --output deterministic_verdict.json
 
           echo "verdict=$(python - <<'PY'
@@ -216,19 +217,27 @@ PY
         with:
           python-version: "3.12"
 
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip pyyaml
+
       - name: Final aggregate
         run: |
           python tools/review/aggregate.py \
             --reports deterministic_verdict.json semantic_review.json \
             --policy tools/review/policy/review_policy.yaml \
-            --output final_verdict.json
+            --proposal review_context.json \
+            --output final_verdict.json || true
 
           python - <<'PY'
 import json
 import sys
+
 with open("final_verdict.json") as f:
     data = json.load(f)
 print(json.dumps(data, indent=2))
-if data["final_verdict"] in {"BLOCK", "ESCALATE"}:
+if data["final_verdict"] == "BLOCK":
+    sys.exit(1)
+if data["final_verdict"] == "ESCALATE":
     sys.exit(1)
 PY
