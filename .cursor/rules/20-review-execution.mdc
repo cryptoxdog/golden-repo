@@ -1,0 +1,26 @@
+---
+description: Review workflow and execution commands
+globs:
+  - ".github/workflows/**"
+  - "scripts/**"
+  - "Makefile"
+alwaysApply: true
+---
+
+# Review Execution
+
+## Workflow contract
+The GitHub workflow must match the real script CLI signatures exactly.
+
+## Local execution
+- `make test`
+- `make review-local BASE_REF=HEAD~1 HEAD_REF=HEAD`
+- `make validate-policy`
+
+## If changing script arguments
+You must update:
+- workflow YAML
+- Makefile
+- README.md
+- CLAUDE.md
+- TESTING.md

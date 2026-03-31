@@ -1,0 +1,20 @@
+# llms.txt
+
+Repository: golden-repo-ai-review-system
+
+Purpose:
+Deterministic-first universal change governance engine for L9-aligned engine repositories.
+
+Primary runtime facts:
+- Normalized review input contract: tools/review/schemas/change_proposal.schema.json
+- Normalized final output contract: tools/review/schemas/governance_decision.schema.json
+- Deterministic analyzers live under tools/review/analyzers/
+- Final decision composer: tools/review/aggregate.py
+- Waivers: tools/review/waivers.py + tools/review/policy/review_exceptions.yaml
+- Example engine chassis bridge: engine/handlers.py
+
+Hard rules:
+- engine/ must not define HTTP routes
+- tools/review/ must not be imported by engine runtime code
+- semantic review is conditional and non-sovereign
+- workflows must match actual CLI signatures

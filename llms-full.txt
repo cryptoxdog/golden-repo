@@ -1,0 +1,82 @@
+# llms-full.txt
+
+## System identity
+This repository implements a deterministic-first governance engine for repository changes. It evaluates normalized proposals against policy, architecture, template, spec, and protected-path constraints and emits a canonical governance decision.
+
+## Canonical contracts
+
+### ChangeProposal
+Location:
+- tools/review/schemas/change_proposal.schema.json
+
+Semantics:
+- one normalized representation of a proposed change
+- used by classifier and deterministic analyzers
+- generated from git refs by build_context.py or adapter boundaries
+
+Fields:
+- id
+- type
+- changed_files
+- changed_lines
+- diff
+- metadata
+
+### GovernanceDecision
+Location:
+- tools/review/schemas/governance_decision.schema.json
+
+Semantics:
+- one normalized final governance output
+- emitted by aggregate.py
+- consumed by workflow enforcement and PR-comment rendering
+
+Fields:
+- proposal_id
+- final_verdict
+- risk
+- findings
+- waived_findings
+- rationale_summary
+- confidence
+- trace
+
+## Deterministic analyzers
+- template_compliance.py
+- architecture_boundary.py
+- protected_paths.py
+- spec_coverage.py
+- yaml_validation.py
+
+## Semantic analyzer
+- llm/semantic_review.py
+This is advisory/escalatory only and must never replace deterministic blockers.
+
+## Review pipeline
+1. build_context.py
+2. classify_pr.py
+3. deterministic analyzers
+4. aggregate.py
+5. format_pr_comment.py
+
+## Example engine facts
+- engine/handlers.py registers `execute` and `describe`
+- action payloads are validated by Pydantic models in engine/models/action_models.py
+- prohibited factor filtering is enforced in engine/compliance/prohibited_factors.py
+- service execution lives in engine/services/action_service.py
+
+## Protected paths
+- .github/workflows/**
+- .github/CODEOWNERS
+- tools/review/policy/**
+- tools/review/schemas/**
+- engine/handlers.py
+- engine/models/**
+- spec.yaml
+
+## Rules for AI agents
+- do not add alternate APIs
+- do not add HTTP code into engine/
+- do not bypass ChangeProposal/GovernanceDecision
+- do not change workflow script arguments without updating docs, Makefile, and workflow YAML
+- do not add placeholders, TODOs, or dead files

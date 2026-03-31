@@ -1,101 +1,47 @@
-.PHONY: setup dev test test-unit test-integration test-compliance test-all test-watch lint audit agent-check agent-fix build deploy
+PYTHON ?= python
+BASE_REF ?= HEAD~1
+HEAD_REF ?= HEAD
+ARTIFACT_DIR ?= .artifacts/review
+EVAL_OUTPUT ?= .artifacts/evals/eval_results.json
 
-# ============================================================
-# SETUP
-# ============================================================
-setup:
-	pip install -e ".[dev]"
-	pre-commit install
+.PHONY: test lint typecheck review-local validate-policy eval clean
 
-dev:
-	docker compose up -d
-
-# ============================================================
-# TESTING
-# ============================================================
 test:
-	pytest tests/ -v --tb=short
+	$(PYTHON) -m pytest
 
-test-unit:
-	pytest tests/unit/ -v --tb=short
-
-test-integration:
-	pytest tests/integration/ -v --tb=short -m integration
-
-test-compliance:
-	pytest tests/compliance/ -v --tb=short
-
-test-all:
-	ruff check .
-	ruff format --check .
-	python tools/audit_engine.py --strict
-	python tools/verify_contracts.py
-	pytest tests/ -v --tb=short
-
-test-watch:
-	pytest-watch tests/unit/ -- -v --tb=short
-
-# ============================================================
-# QUALITY
-# ============================================================
 lint:
-	ruff check .
-	ruff format --check .
-	mypy engine
+	$(PYTHON) -m ruff check .
 
-audit:
-	python tools/audit_engine.py
+typecheck:
+	$(PYTHON) -m mypy engine tools
 
-# ============================================================
-# AGENT WORKFLOW
-# ============================================================
-agent-check:  ## THE universal gate. Agents run this before every commit.
-	@echo "=== NAMING ===" && python tools/audit_engine.py --group naming
-	@echo "=== SECURITY ===" && python tools/audit_engine.py --group security
-	@echo "=== IMPORTS ===" && python tools/audit_engine.py --group imports
-	@echo "=== COMPLETENESS ===" && python tools/audit_engine.py --group completeness
-	@echo "=== PATTERNS ===" && python tools/audit_engine.py --group patterns
-	@echo "=== TESTS ===" && pytest tests/ -v --tb=short
-	@echo "=== CONTRACTS ===" && python tools/verify_contracts.py
-	@echo "=== ALL CHECKS PASSED ==="
+review-local:
+	mkdir -p $(ARTIFACT_DIR)
+	$(PYTHON) tools/review/build_context.py --base-ref $(BASE_REF) --head-ref $(HEAD_REF) --output $(ARTIFACT_DIR)/review_context.json
+	$(PYTHON) tools/review/classify_pr.py --proposal $(ARTIFACT_DIR)/review_context.json --policy tools/review/policy/review_policy.yaml --output $(ARTIFACT_DIR)/pr_classification.json
+	$(PYTHON) tools/review/analyzers/template_compliance.py --repo-root . --manifest tools/review/policy/template_manifest.yaml --context $(ARTIFACT_DIR)/review_context.json --output $(ARTIFACT_DIR)/template_report.json
+	$(PYTHON) tools/review/analyzers/architecture_boundary.py --repo-root . --architecture tools/review/policy/architecture.yaml --context $(ARTIFACT_DIR)/review_context.json --output $(ARTIFACT_DIR)/architecture_report.json
+	$(PYTHON) tools/review/analyzers/protected_paths.py --policy tools/review/policy/review_policy.yaml --context $(ARTIFACT_DIR)/review_context.json --output $(ARTIFACT_DIR)/protected_paths_report.json
+	$(PYTHON) tools/review/analyzers/spec_coverage.py --repo-root . --spec spec.yaml --output $(ARTIFACT_DIR)/spec_coverage_report.json
+	$(PYTHON) tools/review/analyzers/yaml_validation.py --policy tools/review/policy/review_policy.yaml --output $(ARTIFACT_DIR)/yaml_validation_report.json
+	$(PYTHON) tools/review/aggregate.py --reports \
+		$(ARTIFACT_DIR)/template_report.json \
+		$(ARTIFACT_DIR)/architecture_report.json \
+		$(ARTIFACT_DIR)/protected_paths_report.json \
+		$(ARTIFACT_DIR)/spec_coverage_report.json \
+		$(ARTIFACT_DIR)/yaml_validation_report.json \
+		--policy tools/review/policy/review_policy.yaml \
+		--proposal $(ARTIFACT_DIR)/review_context.json \
+		--output $(ARTIFACT_DIR)/final_verdict.json
+	$(PYTHON) tools/review/format_pr_comment.py --report $(ARTIFACT_DIR)/final_verdict.json --output $(ARTIFACT_DIR)/pr_comment.md
 
-agent-fix:
-	ruff check . --fix
-	ruff format .
-	python tools/audit_engine.py --fix
+validate-policy:
+	$(PYTHON) tools/review/analyzers/yaml_validation.py --policy tools/review/policy/review_policy.yaml --output /tmp/yaml_validation_report.json
 
-# ============================================================
-# BUILD / DEPLOY
-# ============================================================
-build:
-	docker build -t $$(basename $$(pwd)):latest .
+eval:
+	mkdir -p $(dir $(EVAL_OUTPUT))
+	$(PYTHON) tools/review/evals/replay.py --cases tests/fixtures/eval_cases.json --policy tools/review/policy/review_policy.yaml --output $(EVAL_OUTPUT)
 
-# ============================================================
-# DOCKER — LOCAL & PRODUCTION
-# ============================================================
-dev:
-	docker compose up -d
-
-dev-build:
-	docker compose up -d --build
-
-dev-down:
-	docker compose down
-
-dev-clean:
-	docker compose down -v --remove-orphans
-
-prod:
-	docker compose -f docker-compose.prod.yml up -d
-
-prod-build:
-	docker compose -f docker-compose.prod.yml up -d --build
-
-prod-down:
-	docker compose -f docker-compose.prod.yml down
-
-prod-logs:
-	docker compose -f docker-compose.prod.yml logs -f
-
-deploy:
-	./scripts/deploy.sh $(ENV)
+clean:
+	rm -rf .artifacts .pytest_cache
+	find . -type d -name "__pycache__" -prune -exec rm -rf {} +

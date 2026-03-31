@@ -1,0 +1,25 @@
+---
+description: Deterministic governance rules
+globs:
+  - "tools/review/**"
+alwaysApply: true
+---
+
+# Governance Boundaries
+
+## Required contracts
+- Input schema: `tools/review/schemas/change_proposal.schema.json`
+- Output schema: `tools/review/schemas/governance_decision.schema.json`
+
+## Required analyzers
+- template compliance
+- architecture boundary
+- protected paths
+- spec coverage
+- YAML validation
+
+## Rules
+- Deterministic checks block or escalate first.
+- Semantic review is conditional and advisory/escalatory only.
+- Aggregation must preserve all findings.
+- Waivers must be explicit, time-bounded, and policy-driven.

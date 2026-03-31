@@ -1,0 +1,23 @@
+# Governance and workflow ownership
+/.github/workflows/ @platform-governance
+/.github/CODEOWNERS @platform-governance
+/tools/review/policy/ @platform-governance
+/tools/review/schemas/ @platform-governance
+/tools/review/aggregate.py @platform-governance
+/tools/review/waivers.py @platform-governance
+/tools/review/format_pr_comment.py @platform-governance
+
+# Runtime control points
+/engine/handlers.py @runtime-owners @platform-governance
+/engine/models/ @runtime-owners @platform-governance
+/spec.yaml @runtime-owners @platform-governance
+
+# Agent and root control files
+/CLAUDE.md @platform-governance
+/AGENTS.md @platform-governance
+/.cursorrules @platform-governance
+/.cursor/rules/ @platform-governance
+/GUARDRAILS.md @platform-governance
+/ARCHITECTURE.md @platform-governance
+/TESTING.md @platform-governance
+/SECURITY.md @platform-governance

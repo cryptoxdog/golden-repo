@@ -1,0 +1,22 @@
+---
+description: System architecture and repository boundaries
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# System Architecture
+
+This repository contains:
+- a minimal example L9 engine in `engine/`
+- a deterministic-first governance control plane in `tools/review/`
+
+## Boundaries
+- `engine/` is runtime domain logic only.
+- `tools/review/` is governance tooling only.
+- `engine/handlers.py` is the only runtime chassis bridge.
+- `tools/review/` must never be imported by runtime modules.
+- No FastAPI, Starlette, uvicorn, or route definitions belong in `engine/`.
+
+## Execution path
+ChangeProposal -> classifier/analyzers -> aggregate -> GovernanceDecision
