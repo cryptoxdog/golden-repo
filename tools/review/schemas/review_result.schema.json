@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReviewResult",
+  "type": "object",
+  "required": ["dimension", "verdict", "confidence", "findings", "rationale_summary"],
+  "properties": {
+    "dimension": {"type": "string"},
+    "verdict": {
+      "type": "string",
+      "enum": ["APPROVE", "WARN", "BLOCK", "ESCALATE"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "severity", "rule_id", "finding"],
+        "properties": {
+          "file": {"type": "string"},
+          "line": {"type": "integer"},
+          "severity": {"type": "string"},
+          "rule_id": {"type": "string"},
+          "finding": {"type": "string"}
+        }
+      }
+    },
+    "rationale_summary": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "metrics": {
+      "type": "object"
+    }
+  }
+}
