@@ -1,0 +1,8 @@
+---
+description: Core architecture and protocol lock
+alwaysApply: true
+---
+
+- PacketEnvelope is the canonical execution protocol.
+- Gate-compatible ingress is mandatory.
+- Contract files in `contracts/` are SSOT.

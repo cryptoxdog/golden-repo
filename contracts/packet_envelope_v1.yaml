@@ -1,0 +1,265 @@
+protocol:
+  id: l9.packet_envelope
+  title: L9 PacketEnvelope
+  version: 1.0.0
+  status: canonical
+  owners:
+    - L9 Platform
+  purpose: >-
+    Canonical execution protocol for all L9 node-to-node and consumer-to-node execution.
+  compatibility:
+    current_schema_version: "1.1"
+    backward_compatible_minor: true
+    breaking_change_policy: major_version_only
+    rule: >-
+      A node may only accept packets whose header.schema_version is supported by that node's
+      declared compatibility policy.
+  invariants:
+    - PacketEnvelope is the only canonical network execution contract.
+    - All external execution enters through Gate or an approved Gate-compatible ingress membrane.
+    - Tenant context is immutable across derived packets.
+    - Packets evolve by derivation, never mutation.
+    - envelope_hash signs the canonical envelope without the signature field.
+    - content_hash signs the canonical payload only.
+    - replay semantics are explicit and never inferred.
+    - lineage must remain reconstructable from any derived packet.
+
+packet:
+  required_sections:
+    - header
+    - address
+    - tenant
+    - payload
+    - security
+    - governance
+    - delegation_chain
+    - hop_trace
+    - lineage
+    - attachments
+
+header:
+  packet_id:
+    type: uuid
+    required: true
+    semantics: Unique identifier for this packet instance.
+  packet_type:
+    type: enum
+    required: true
+    values:
+      - request
+      - response
+      - event
+      - command
+      - delegation
+      - failure
+      - replay_request
+      - replay_response
+      - compensation
+    semantics: Canonical packet class.
+  action:
+    type: string
+    required: true
+    format: lowercase-alphanumeric-dash
+    max_length: 64
+    semantics: Declared execution action.
+  priority:
+    type: integer
+    required: true
+    range: [0, 3]
+    semantics: Execution urgency class.
+  created_at:
+    type: datetime_utc
+    required: true
+  expires_at:
+    type: datetime_utc
+    required: false
+    semantics: Hard packet TTL.
+  timeout_ms:
+    type: integer
+    required: true
+    min: 1
+    semantics: Max expected handler execution time.
+  schema_version:
+    type: string
+    required: true
+    const: "1.1"
+  idempotency_key:
+    type: string
+    required: false
+    semantics: Required for configured side-effecting actions.
+  trace_id:
+    type: string
+    required: false
+    semantics: Cross-system trace grouping key.
+  correlation_id:
+    type: string
+    required: false
+    semantics: Related packet grouping key.
+  causation_id:
+    type: uuid
+    required: false
+    semantics: Packet that directly caused this packet.
+  retry_count:
+    type: integer
+    required: true
+    min: 0
+  replay_mode:
+    type: boolean
+    required: true
+  not_before:
+    type: datetime_utc
+    required: false
+
+address:
+  source_node:
+    type: string
+    required: true
+  destination_node:
+    type: string
+    required: true
+  reply_to:
+    type: string
+    required: true
+
+tenant:
+  required_fields:
+    - actor
+    - on_behalf_of
+    - originator
+    - org_id
+  optional_fields:
+    - user_id
+  invariants:
+    - Tenant fields are immutable in all derived packets.
+    - Any change in authorization must happen through governance and delegation, not tenant rewrite.
+
+security:
+  content_hash:
+    type: sha256_hex
+    required: true
+  envelope_hash:
+    type: sha256_hex
+    required: true
+  signature:
+    type: string
+    required: false
+  signature_algorithm:
+    type: enum
+    required: false
+    values:
+      - hmac-sha256
+      - ed25519
+  signing_key_id:
+    type: string
+    required: false
+  classification:
+    type: enum
+    required: true
+    values:
+      - public
+      - internal
+      - confidential
+      - restricted
+  encryption_status:
+    type: enum
+    required: true
+    values:
+      - plaintext
+      - encrypted
+      - envelope-only
+  pii_fields:
+    type: list[string]
+    required: true
+  invariants:
+    - content_hash must match canonical payload JSON.
+    - envelope_hash must match canonical envelope JSON excluding signature.
+    - restricted packets require audit_required=true.
+
+ governance:
+  intent:
+    type: string
+    required: true
+  compliance_tags:
+    type: list[string]
+    required: true
+  retention_days:
+    type: integer
+    required: true
+  redaction_applied:
+    type: boolean
+    required: true
+  audit_required:
+    type: boolean
+    required: true
+  data_subject_id:
+    type: string
+    required: false
+
+ delegation_chain:
+  type: list[delegation_link]
+  invariants:
+    - Scope may narrow but never widen across the chain.
+    - Delegated packet action must be allowed by the terminal delegation link.
+    - Delegated packet destination must equal terminal delegatee.
+
+ hop_trace:
+  type: list[hop_entry]
+  invariants:
+    - Hop trace is append-only.
+    - Hop trace entries are chronological.
+
+lineage:
+  required_fields:
+    - root_id
+    - generation
+  optional_fields:
+    - parent_id
+  invariants:
+    - root_id remains constant across derivation.
+    - parent_id must equal the direct parent packet_id.
+    - generation increments by 1 for each derived packet.
+
+attachments:
+  type: list[attachment]
+  policy:
+    allowed_schemes_configured_per_node: true
+    dangerous_schemes_forbidden:
+      - file
+      - ftp
+    http_private_hosts_forbidden_by_default: true
+
+packet_classes:
+  request:
+    purpose: Initial execution request.
+  response:
+    purpose: Final or intermediate response to a request.
+  delegation:
+    purpose: Packet explicitly delegated to another node with scope constraints.
+  failure:
+    purpose: Error packet when execution cannot continue normally.
+  replay_request:
+    purpose: Explicit replay of a previously authorized execution path.
+  replay_response:
+    purpose: Response to replayed execution.
+  compensation:
+    purpose: Compensating action packet for rollback/reversal flows.
+
+replay_policy:
+  rules:
+    - replay_request must set replay_mode=true.
+    - replay_mode must not be set on packet types other than replay_request.
+    - replay acceptance is a node policy decision, never implicit.
+
+error_contract:
+  rules:
+    - Internal exception details must not be exposed unless explicitly configured.
+    - Failure packets must still preserve lineage, tenant, and reply semantics.
+    - Failure packet payload must remain machine-parsable.
+
+conformance:
+  mandatory_for_all_l9_nodes:
+    - Accept PacketEnvelope v1 over /v1/execute.
+    - Validate packet integrity and policy before execution.
+    - Preserve tenant immutability.
+    - Derive responses rather than mutating requests.
+    - Support health and readiness contracts.

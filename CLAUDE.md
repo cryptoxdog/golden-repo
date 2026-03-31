@@ -111,3 +111,18 @@ domains/                ← {domain_id}/spec.yaml per vertical
 - Python post-filtering of match results → gate-then-score in Cypher (contract 13)
 - Hardcoded GDS scheduling → declarative spec (contract 19)
 - eval(), exec(), pickle.load(), yaml.load() without SafeLoader → banned (contract 9)
+
+---
+
+## Protocol Lock (canonical contracts)
+
+The following files in `contracts/` are the canonical source of truth:
+- `contracts/packet_envelope_v1.yaml` — PacketEnvelope v1 schema and invariants
+- `contracts/conformant_node_contract.yaml` — conformant node requirements
+- `contracts/node_registration_contract.yaml` — node registration/capability descriptor
+- `contracts/conformance_checklist.md` — conformance self-check
+
+Rules:
+- Do not introduce alternate execution transports.
+- Do not create nodes that bypass Gate-compatible ingress.
+- PacketEnvelope and conformant-node contracts outrank informal docs and examples.
