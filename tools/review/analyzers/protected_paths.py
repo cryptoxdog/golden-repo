@@ -37,6 +37,7 @@ def run(policy_path: Path, context_path: Path) -> ReviewReport:
         confidence=0.95,
         findings=findings,
         rationale_summary=rationale,
+        repro_steps=["Open the changed protected file and confirm CODEOWNERS approval is present"] if findings else [],
     )
 
 

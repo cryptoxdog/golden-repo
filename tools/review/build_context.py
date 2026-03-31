@@ -25,11 +25,16 @@ def build_context(base_ref: str, head_ref: str) -> dict:
     ]
     diff = run_git("diff", "--unified=3", f"{base_ref}...{head_ref}")
     changed_lines = sum(
-        1
-        for line in diff.splitlines()
-        if line.startswith("+") or line.startswith("-")
+        1 for line in diff.splitlines()
+        if (line.startswith("+") or line.startswith("-"))
+        and not line.startswith("+++")
+        and not line.startswith("---")
     )
-    context = {
+    protected_hits = [
+        item for item in changed_files
+        if item.startswith(".github/workflows/") or item.startswith("tools/review/policy/")
+    ]
+    return {
         "base_ref": base_ref,
         "head_ref": head_ref,
         "changed_files": changed_files,
@@ -41,9 +46,9 @@ def build_context(base_ref: str, head_ref: str) -> dict:
         ),
         "workflow_changed": any(item.startswith(".github/workflows/") for item in changed_files),
         "policy_changed": any(item.startswith("tools/review/policy/") for item in changed_files),
+        "protected_path_hits": protected_hits,
         "generated_at": datetime.now(tz=UTC).isoformat(),
     }
-    return context
 
 
 def main() -> None:

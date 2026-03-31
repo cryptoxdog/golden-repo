@@ -1,13 +1,24 @@
-# Agent Instructions
+# Agent guide
 
-Agents must treat the following as canonical:
-- `contracts/packet_envelope_v1.yaml`
-- `contracts/conformant_node_contract.yaml`
-- `contracts/node_registration_contract.yaml`
-- `contracts/conformance_checklist.md`
+## Scope
 
-When generating or editing services:
-1. Read the contracts first.
-2. Preserve PacketEnvelope invariants.
-3. Keep Gate compatibility intact.
-4. Use the service manifest and generator instead of hand-building structure.
+This repo produces reusable microservice packs.
+It is not the place for service-specific business rules unless they live under templates.
+
+## Roles
+
+- Platform agent: maintains transport, startup, security, deploy, clients
+- Template agent: maintains service generator and 10X templates
+- Service agent: consumes this repo to stamp new microservices
+
+## Boundaries
+
+Allowed:
+- improve chassis, startup, deploy, template rendering, tests
+- add provider-safe deploy defaults
+- add reusable service scaffolds
+
+Not allowed:
+- hardcode service secrets
+- hardcode Gate-only assumptions into the golden runtime
+- drift from PacketEnvelope-only transport

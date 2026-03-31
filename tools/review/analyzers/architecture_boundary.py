@@ -4,6 +4,7 @@ import argparse
 import ast
 import json
 from pathlib import Path
+import re
 
 import yaml
 
@@ -30,26 +31,29 @@ def extract_imports(source: str) -> list[tuple[str, int]]:
     return imports
 
 
-def validate_handler_contract(path: Path) -> list[Finding]:
+def validate_handler_contract(path: Path, architecture: dict) -> list[Finding]:
     findings: list[Finding] = []
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source)
     has_register_all = False
+    pattern = re.compile(architecture["handler_contract"]["allowed_signature_regex"])
+
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == "register_all":
             has_register_all = True
         if isinstance(node, ast.AsyncFunctionDef) and node.name.startswith("handle_"):
-            arg_names = [arg.arg for arg in node.args.args]
-            if arg_names != ["tenant", "payload"]:
+            line_text = source.splitlines()[node.lineno - 1].strip()
+            if not pattern.match(line_text):
                 findings.append(
                     Finding(
                         file=str(path).replace("\\", "/"),
                         line=node.lineno,
                         severity="critical",
                         rule_id="ARCH-HANDLER-001",
-                        finding="Handler signature must be (tenant, payload)",
+                        finding="Handler signature must exactly match the architecture contract",
                     )
                 )
+
     if not has_register_all:
         findings.append(
             Finding(
@@ -60,7 +64,8 @@ def validate_handler_contract(path: Path) -> list[Finding]:
                 finding="engine/handlers.py must define register_all",
             )
         )
-    if ".model_validate(payload)" not in source:
+
+    if architecture["handler_contract"]["required_payload_validation"] and ".model_validate(payload)" not in source:
         findings.append(
             Finding(
                 file=str(path).replace("\\", "/"),
@@ -87,6 +92,7 @@ def run(repo_root: Path, architecture_path: Path, context_path: Path) -> ReviewR
         path = repo_root / changed
         if not path.exists():
             continue
+
         source = path.read_text(encoding="utf-8")
         imports = extract_imports(source)
         forbidden = architecture["layers"][layer_name]["forbidden_import_prefixes"]
@@ -106,20 +112,39 @@ def run(repo_root: Path, architecture_path: Path, context_path: Path) -> ReviewR
                     )
                 )
 
-        if changed == architecture["handler_contract"]["file"]:
-            findings.extend(validate_handler_contract(path))
+        if layer_name.startswith("engine_") and (
+            "from fastapi import" in source
+            or "from starlette import" in source
+            or "APIRouter(" in source
+        ):
+            findings.append(
+                Finding(
+                    file=changed,
+                    line=1,
+                    severity="critical",
+                    rule_id="ARCH-TRANSPORT-001",
+                    finding="Engine modules may not define transport-layer routes or dependencies",
+                )
+            )
 
-    verdict = "BLOCK" if any(item.severity == "critical" for item in findings) else (
-        "ESCALATE" if findings else "APPROVE"
+        if changed == architecture["handler_contract"]["file"]:
+            findings.extend(validate_handler_contract(path, architecture))
+
+    verdict = (
+        "BLOCK"
+        if any(item.severity == "critical" for item in findings)
+        else "ESCALATE" if findings else "APPROVE"
     )
-    rationale = ["Architecture boundary violations detected"] if findings else [
-        "No architecture boundary violations detected"
-    ]
+    rationale = (
+        ["Detected architectural boundary violations"]
+        if findings
+        else ["No architectural boundary violations detected"]
+    )
 
     return ReviewReport(
         dimension="architecture_boundary",
         verdict=verdict,
-        confidence=0.99 if verdict == "BLOCK" else 0.95,
+        confidence=0.99 if verdict == "BLOCK" else 0.96,
         findings=findings,
         rationale_summary=rationale,
     )

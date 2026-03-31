@@ -13,13 +13,18 @@ def extract_registered_handlers(handler_path: Path) -> set[str]:
     source = handler_path.read_text(encoding="utf-8")
     tree = ast.parse(source)
     registered: set[str] = set()
+
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Name):
-            continue
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            parent_text = source.splitlines()[node.lineno - 1] if getattr(node, "lineno", None) else ""
-            if 'registry["' in parent_text or "registry['" in parent_text:
-                registered.add(node.value)
+        if isinstance(node, ast.FunctionDef) and node.name == "register_all":
+            for child in ast.walk(node):
+                if isinstance(child, ast.Assign):
+                    for target in child.targets:
+                        if (
+                            isinstance(target, ast.Subscript)
+                            and isinstance(target.slice, ast.Constant)
+                            and isinstance(target.slice.value, str)
+                        ):
+                            registered.add(target.slice.value)
     return registered
 
 
@@ -77,10 +82,19 @@ def run(repo_root: Path, spec_path: Path) -> ReviewReport:
             )
         )
 
+    if not spec_actions:
+        findings.append(
+            Finding(
+                file="spec.yaml",
+                line=1,
+                severity="critical",
+                rule_id="SPEC-COVERAGE-004",
+                finding="spec.yaml must define at least one action",
+            )
+        )
+
     coverage_ratio = 1.0 if not spec_actions else len(spec_actions & registered & functions) / len(spec_actions)
-    verdict = "BLOCK" if any(item.severity == "critical" for item in findings) else (
-        "ESCALATE" if findings else "APPROVE"
-    )
+    verdict = "BLOCK" if any(item.severity == "critical" for item in findings) else ("ESCALATE" if findings else "APPROVE")
 
     return ReviewReport(
         dimension="spec_coverage",
@@ -88,9 +102,7 @@ def run(repo_root: Path, spec_path: Path) -> ReviewReport:
         confidence=0.98,
         findings=findings,
         rationale_summary=[
-            "Spec coverage verified against registered handlers"
-            if not findings
-            else "Spec coverage gaps detected"
+            "Spec coverage verified against registered handlers" if not findings else "Spec coverage gaps detected"
         ],
         metrics={
             "spec_actions": len(spec_actions),

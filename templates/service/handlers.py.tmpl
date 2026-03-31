@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+from typing import Any
+
 from engine.handlers import register_action_handler
+from .payloads import QueryPayload
 
 
-async def healthcheck_handler(tenant: str, payload: dict) -> dict:
-    return {"status": "success", "data": {"ok": True, "tenant": tenant}}
+async def query_handler(tenant: str, payload: QueryPayload) -> dict[str, Any]:
+    return {
+        "status": "success",
+        "data": {
+            "tenant": tenant,
+            "query": payload.query,
+            "capability_id": "{{ PRIMARY_CAPABILITY_ID }}",
+        },
+    }
 
 
 def register_domain_handlers() -> None:
-    register_action_handler("healthcheck", healthcheck_handler)
+    register_action_handler("query", payload_model=QueryPayload, handler=query_handler)

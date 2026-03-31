@@ -1,10 +1,61 @@
-service_name: __SERVICE_NAME__
-package_name: __PACKAGE_NAME__
-app_module: __PACKAGE_NAME__.app:app
-public_service: false
-allowed_actions:
-  - healthcheck
-idempotency_required_actions: []
-signing_mode: ed25519
-deploy_region: nyc3
-droplet_size: s-4vcpu-8gb-amd
+service:
+  service_name: example-service
+  package_name: example_service
+  module_path: example_service.app
+  app_module: example_service.app:app
+  node_class: standard
+  public_service: false
+  domain: internal.example.local
+
+protocol:
+  packet_contract: contracts/packet_envelope_v1.yaml
+  node_contract: contracts/conformant_node_contract.yaml
+  registration_contract: contracts/node_registration_contract.yaml
+  protocol_version: 1.0.0
+  schema_version: "1.1"
+
+execution:
+  allowed_actions:
+    - match
+    - sync
+    - enrich
+    - query
+    - admin
+    - healthcheck
+  require_idempotency_for_actions:
+    - sync
+    - admin
+  supported_packet_types:
+    - request
+    - command
+    - delegation
+    - replay_request
+
+security:
+  signing_algorithm: ed25519
+  require_signature: true
+  expose_internal_errors: false
+  enable_metrics: false
+  attachment_allowed_schemes:
+    - https
+    - s3
+    - gs
+
+registration:
+  priority_class: standard
+  max_concurrent: 100
+  timeout_ms: 30000
+  health_endpoint: /v1/health
+  trust_tier: internal
+  capability_descriptor:
+    capability_id: example-service.default
+    capability_summary: Example protocol-native service template
+    capability_actions:
+      - match
+      - query
+    latency_profile: standard
+    trust_tier: internal
+    confidence_profile: deterministic
+    cost_class: standard
+    domain_affinities:
+      - platform

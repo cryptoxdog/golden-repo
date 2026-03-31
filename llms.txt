@@ -1,20 +1,9 @@
-L9 Golden Microservice Repo
+L9 Golden Repo Protocol Lock Pack
 
-Purpose: reusable microservice runtime and deploy template.
+Source of truth:
+- contracts/packet_envelope_v1.yaml
+- contracts/conformant_node_contract.yaml
+- contracts/node_registration_contract.yaml
+- contracts/conformance_checklist.md
 
-Canonical contract:
-- PacketEnvelope v1.1
-- HTTP POST /v1/execute
-
-Not this repo:
-- Gate node business orchestration
-- service-specific domain handlers
-
-This repo owns:
-- transport core
-- ingress adapter
-- startup/preflight
-- deployment kit
-- clients
-- templates
-- operational docs
+Use these before generating or evaluating any node.

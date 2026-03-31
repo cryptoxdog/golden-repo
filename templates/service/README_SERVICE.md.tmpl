@@ -1,7 +1,14 @@
-# __SERVICE_NAME__
+# {{ SERVICE_NAME }}
 
-Generated from L9 golden microservice repo.
+This service is generated from the L9 golden template and is expected to remain conformant with:
 
-- app module: `__PACKAGE_NAME__.app:app`
-- transport: PacketEnvelope v1.1
-- endpoint: `/v1/execute`
+- `contracts/packet_envelope_v1.yaml`
+- `contracts/conformant_node_contract.yaml`
+- `contracts/node_registration_contract.yaml`
+
+## Primary capability
+- ID: `{{ PRIMARY_CAPABILITY_ID }}`
+- Summary: {{ PRIMARY_CAPABILITY_SUMMARY }}
+
+## Actions
+{{ ACTIONS }}

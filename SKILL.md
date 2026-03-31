@@ -1,13 +1,4 @@
-# Skill usage
+# Skill Usage Guidance
 
-Use skills here only when producing repo-aligned artifacts.
-
-Allowed:
-- deployment docs
-- operational checklists
-- architecture decks
-- migration guides
-
-Not allowed:
-- introducing alternate runtime behavior
-- generating docs that contradict PacketEnvelope transport or deploy flow
+Skills operating on this repository must not drift from the canonical contracts in `contracts/`.
+If a generated artifact conflicts with those contracts, the contracts win.
