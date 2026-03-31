@@ -1,0 +1,9 @@
+{
+  "name": "@l9/golden-packet-client",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/executeClient.js",
+  "types": "./dist/types.d.ts",
+  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit" },
+  "devDependencies": { "@types/node": "^22.10.1", "typescript": "^5.6.3" }
+}

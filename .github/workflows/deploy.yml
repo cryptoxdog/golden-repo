@@ -1,0 +1,49 @@
+name: deploy-service
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+        default: main
+      action:
+        required: true
+        default: deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: hashicorp/setup-terraform@v3
+      - name: Write deploy env
+        run: |
+          cat > .env.deploy <<'ENVEOF'
+          ${{ secrets.DEPLOY_ENV_FILE }}
+          ENVEOF
+      - name: Validate deploy env
+        run: python deploy/scripts/preflight_env_check.py .env.deploy
+      - name: Render service env
+        run: python deploy/scripts/render_env.py .env.deploy > service.env
+      - name: Terraform init/apply
+        working-directory: deploy/terraform
+        run: |
+          terraform init
+          terraform apply -auto-approve -var-file=../../.env.deploy -var "archive_ref=${{ github.event.inputs.ref }}"
+          terraform output -raw droplet_ip > ../../host_ip
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      - name: Add known host
+        run: ssh-keyscan -H $(cat host_ip) >> ~/.ssh/known_hosts
+      - name: Package and upload
+        run: |
+          git archive --format=tar.gz --output release.tar.gz ${{ github.event.inputs.ref }}
+          scp release.tar.gz root@$(cat host_ip):/opt/l9/releases/release.tar.gz
+          scp service.env root@$(cat host_ip):/opt/l9/shared/service.env
+      - name: Remote deploy
+        if: ${{ github.event.inputs.action == 'deploy' }}
+        run: ssh root@$(cat host_ip) 'bash /opt/l9/bin/deploy_remote.sh'

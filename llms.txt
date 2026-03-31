@@ -1,0 +1,20 @@
+L9 Golden Microservice Repo
+
+Purpose: reusable microservice runtime and deploy template.
+
+Canonical contract:
+- PacketEnvelope v1.1
+- HTTP POST /v1/execute
+
+Not this repo:
+- Gate node business orchestration
+- service-specific domain handlers
+
+This repo owns:
+- transport core
+- ingress adapter
+- startup/preflight
+- deployment kit
+- clients
+- templates
+- operational docs
