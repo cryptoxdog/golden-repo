@@ -116,3 +116,41 @@ reporting:
   include_suggested_tests: true
   include_repro_steps: true
   include_chain_of_thought: false
+
+auditor_pipeline:
+  deterministic_auditors:
+    - script: "tools/auditors/arch_boundary_validator.py"
+      dimension: 1
+      report: "arch_report.json"
+    - script: "tools/auditors/logic_correctness.py"
+      dimension: 2
+      report: "logic_report.json"
+    - script: "tools/auditors/spec_fidelity.py"
+      dimension: 3
+      report: "spec_fidelity_report.json"
+    - script: "tools/auditors/integration_boundary.py"
+      dimension: 4
+      report: "integration_report.json"
+    - script: "tools/auditors/template_compliance.py"
+      dimension: 5
+      report: "template_report.json"
+    - script: "tools/auditors/supply_chain.py"
+      dimension: 6
+      report: "supply_chain_report.json"
+  semantic_auditors:
+    - dimension: 2
+      prompt: "tools/review/llm/prompts/spec_review.txt"
+      triggers: ["engine/handlers/**", "engine/services/**"]
+    - dimension: 3
+      prompt: "tools/review/llm/prompts/semantic_review.txt"
+      triggers: ["spec.yaml", "domains/**/spec.yaml"]
+  verdict_aggregation:
+    block_on_any: true
+    security_veto: true  # security BLOCK overrides all other verdicts
+
+mutation_testing:
+  enabled: false  # enable per-repo in .l9-template-version >= 2.0
+  config: ".mutmut-config"
+  target_score: 0.80
+  paths_to_mutate: "engine/"
+  tests_dir: "tests/"
