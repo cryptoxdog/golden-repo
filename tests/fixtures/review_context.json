@@ -1,0 +1,20 @@
+{
+  "id": "proposal_fixture_repo",
+  "type": "code_change",
+  "changed_files": [
+    "engine/handlers.py",
+    "tools/review/build_context.py"
+  ],
+  "changed_lines": 14,
+  "diff": "diff --git a/engine/handlers.py b/engine/handlers.py\n+registry[\"execute\"] = handle_execute\n",
+  "metadata": {
+    "base_ref": "origin/main",
+    "head_ref": "HEAD",
+    "source": "git_pr",
+    "spec_changed": false,
+    "workflow_changed": false,
+    "policy_changed": false,
+    "protected_path_hits": [],
+    "generated_at": "2026-03-31T12:00:00+00:00"
+  }
+}

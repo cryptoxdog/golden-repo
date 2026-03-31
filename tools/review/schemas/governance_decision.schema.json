@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "GovernanceDecision",
+  "type": "object",
+  "required": [
+    "proposal_id",
+    "final_verdict",
+    "risk",
+    "findings",
+    "rationale_summary",
+    "confidence",
+    "trace"
+  ],
+  "properties": {
+    "proposal_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "final_verdict": {
+      "type": "string",
+      "enum": ["APPROVE", "BLOCK", "ESCALATE"]
+    },
+    "risk": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "severity", "rule_id", "finding"],
+        "properties": {
+          "file": {"type": "string"},
+          "line": {"type": "integer"},
+          "severity": {"type": "string"},
+          "rule_id": {"type": "string"},
+          "finding": {"type": "string"},
+          "waived": {"type": "boolean"},
+          "waiver_reason": {"type": ["string", "null"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "waived_findings": {
+      "type": "array",
+      "items": {"$ref": "#/properties/findings/items"}
+    },
+    "rationale_summary": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "suggested_tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "file", "purpose", "assertion"],
+        "properties": {
+          "name": {"type": "string"},
+          "file": {"type": "string"},
+          "purpose": {"type": "string"},
+          "assertion": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "repro_steps": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "metrics": {
+      "type": "object"
+    },
+    "trace": {
+      "type": "object",
+      "required": ["inputs", "analyzers", "timestamps"],
+      "properties": {
+        "inputs": {
+          "type": "object",
+          "properties": {
+            "proposal_id": {"type": "string"},
+            "report_files": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          },
+          "additionalProperties": true
+        },
+        "analyzers": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "timestamps": {
+          "type": "object",
+          "properties": {
+            "generated_at": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

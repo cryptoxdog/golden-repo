@@ -1,0 +1,8 @@
+domain:
+  id: "example_domain"
+  name: "Example Domain"
+  version: "1.0.0"
+
+actions:
+  - "execute"
+  - "describe"

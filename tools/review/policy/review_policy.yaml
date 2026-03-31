@@ -1,0 +1,118 @@
+version: "1.0.0"
+repo_profile: "l9_engine_repo"
+
+review_mode:
+  rollout_stage: "deterministic_blocking_semantic_escalation"
+  allow_semantic_auto_block: false
+  allow_semantic_auto_approve: false
+
+size_limits:
+  max_changed_files_for_autonomous_review: 40
+  max_changed_lines_for_autonomous_review: 1200
+  max_changed_lines_for_semantic_review: 800
+
+risk_routing:
+  critical_paths:
+    - ".github/workflows/**"
+    - "tools/review/policy/**"
+    - "engine/handlers.py"
+    - "engine/models/**"
+    - "engine/core/errors.py"
+    - "spec.yaml"
+    - "domains/**/spec.yaml"
+  high_risk_paths:
+    - "engine/services/**"
+    - "engine/config/**"
+    - "engine/compliance/**"
+    - "main.py"
+  low_risk_paths:
+    - "docs/**"
+    - "**/*.md"
+    - "tests/fixtures/**"
+
+classification_rules:
+  docs_only:
+    include:
+      - "docs/**"
+      - "**/*.md"
+    exclude:
+      - "spec.yaml"
+  ci_only:
+    include:
+      - ".github/**"
+      - "scripts/**"
+  spec_change:
+    include:
+      - "spec.yaml"
+      - "domains/**/spec.yaml"
+  engine_logic_change:
+    include:
+      - "engine/**"
+  tests_only:
+    include:
+      - "tests/**"
+    exclude:
+      - "engine/**"
+      - "spec.yaml"
+
+semantic_review:
+  enabled: true
+  max_jobs: 1
+  max_total_tokens: 60000
+  trigger_on:
+    - "critical"
+    - "spec_change"
+    - "engine_logic_change"
+  skip_on:
+    - "docs_only"
+    - "tests_only"
+  required_context:
+    - "review_context.json"
+    - "deterministic findings"
+    - "spec.yaml if changed"
+
+protected_paths:
+  require_codeowner_review:
+    - ".github/workflows/**"
+    - "tools/review/policy/**"
+    - "spec.yaml"
+    - "engine/models/**"
+  auto_escalate_on_change:
+    - ".github/workflows/**"
+    - "tools/review/policy/**"
+
+blocking_checks:
+  - "template_compliance"
+  - "architecture_boundary"
+  - "protected_paths"
+  - "spec_coverage"
+  - "yaml_validation"
+
+advisory_checks:
+  - "semantic_review"
+
+severity_policy:
+  critical: "BLOCK"
+  high: "ESCALATE"
+  medium: "WARN"
+  low: "COMMENT"
+
+merge_decision:
+  block_if_any_blocking_check_fails: true
+  escalate_if_semantic_high_severity: true
+  escalate_if_pr_exceeds_size_limit: true
+  warn_if_only_advisory_findings: true
+
+waivers:
+  enabled: true
+  file: "tools/review/policy/review_exceptions.yaml"
+  require_owner: true
+  require_expiration: true
+  max_days: 30
+
+reporting:
+  output_schema: "tools/review/schemas/review_result.schema.json"
+  include_rationale_summary: true
+  include_suggested_tests: true
+  include_repro_steps: true
+  include_chain_of_thought: false
