@@ -1,95 +1,23 @@
-contract:
-  id: l9.conformant_node
-  version: 1.0.0
-  status: canonical
-  purpose: >-
-    Defines the minimum runtime, protocol, deployment, and operational requirements for a node
-    to be considered L9-conformant.
+version: "1.0"
+schema_name: conformant_node_contract
 
-node_role:
-  definition: >-
-    A conformant node is a service that executes work using PacketEnvelope as its canonical
-    network contract and integrates cleanly with Gate and the L9 golden template.
+ingress:
+  endpoints:
+    - path: /v1/execute
+      method: POST
+      accepts: PacketEnvelope
+    - path: /v1/health
+      method: GET
+      returns: HealthPayload
 
-required_http_surfaces:
-  - path: /v1/execute
-    method: POST
-    purpose: Canonical execution entrypoint.
-  - path: /v1/health
-    method: GET
-    purpose: Liveness and adapter status.
-  - path: /v1/readiness
-    method: GET
-    purpose: Runtime readiness and state-store readiness.
-optional_http_surfaces:
-  - path: /metrics
-    method: GET
-    purpose: Observability endpoint if enabled by policy.
+handler_signature:
+  pattern: "async def handle_{action}(tenant: str, payload: dict) -> dict"
+  required_actions: [execute, describe]
 
-required_runtime_behaviors:
-  startup:
-    - must run typed config load before serving traffic
-    - must run preflight before readiness becomes true
-    - must initialize runtime store before accepting execution
-    - must register handlers before readiness becomes true
-  execution:
-    - must accept PacketEnvelope as canonical execution body
-    - must reject non-canonical execution payloads outside allowed dev mode
-    - must validate destination, action, packet type, signature, and policy
-    - must enforce required idempotency for configured side-effecting actions
-    - must reject duplicate packet receipts before handler execution
-    - must return PacketEnvelope response or failure packet
-  derivation:
-    - must derive child packets rather than mutate the incoming packet
-    - must preserve lineage rules from packet_envelope_v1
-    - must preserve tenant immutability
-  health:
-    - /v1/health must not depend on external network calls
-    - /v1/readiness must fail if runtime store is not usable
-
-required_configuration:
-  - environment
-  - runtime_mode
-  - node_name
-  - service_name
-  - service_version
-  - allowed_actions
-  - allowed_packet_types
-  - state_db_path
-  - signing_algorithm
-  - signature policy
-
-required_policy_controls:
-  - replay_enabled
-  - require_signature
-  - require_idempotency_for_actions
-  - attachment_allowed_schemes
-  - max_packet_bytes
-  - max_hop_depth
-  - max_delegation_depth
-  - max_attachments
-  - max_attachment_size_bytes
-
-required_deployment_controls:
-  - predeploy_check executable
-  - deterministic entrypoint
-  - health and readiness verification after startup
-  - rollback path
-  - backup and restore path
-
-required_gate_compatibility:
-  registration:
-    - must expose a stable public or internal URL
-    - must expose supported actions
-    - must declare health endpoint
-    - must declare timeout_ms
-  execution:
-    - must accept Gate-originated PacketEnvelopes without custom ingress translation
-    - must preserve Gate-issued lineage and routing metadata
-
-non_conformance_conditions:
-  - uses non-PacketEnvelope network execution contract
-  - bypasses preflight before readiness
-  - mutates tenant context across derivation
-  - lacks required health/readiness surfaces
-  - requires bespoke transport behavior outside declared protocol rules
+guarantees:
+  - PacketEnvelope constructed and validated before handler invocation
+  - idempotency_key checked against packet_receipts before execution
+  - tenant_id propagated through all downstream calls
+  - lineage.generation incremented on every hop
+  - content_hash verified at ingress
+  - audit event emitted for every state mutation
