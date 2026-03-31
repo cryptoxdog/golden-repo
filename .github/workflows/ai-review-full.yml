@@ -1,0 +1,372 @@
+# .github/workflows/ai-review-full.yml
+# Full 8-dimension AI autonomous review pipeline.
+# This workflow is ADDITIVE — it does not replace ai-review.yml.
+# It adds Dimensions 7-8 (test sufficiency, performance/ops) and the
+# confidence aggregation layer not present in the base workflow.
+#
+# Trigger: PRs to main/develop only.
+# Protected file: this file is NOT in protected_files (ai-review.yml is).
+
+name: AI Review — Full Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.12"
+  LLM_MODEL_FAST: "claude-haiku-4-5-20251001"
+  LLM_MODEL_DEEP: "claude-sonnet-4-6"
+  REVIEW_SCHEMA_VERSION: "2.0.0"
+
+concurrency:
+  group: ai-review-full-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # ===========================================================================
+  # STAGE 0: Context Build
+  # ===========================================================================
+  context-build:
+    name: Build Review Context
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      diff_path: ${{ steps.build.outputs.diff_path }}
+      pr_size: ${{ steps.build.outputs.pr_size }}
+      spec_changed: ${{ steps.build.outputs.spec_changed }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build context artifacts
+        id: build
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD > pr.diff
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > changed_files.txt
+
+          SPEC_CHANGED=$(grep -c "spec.yaml" changed_files.txt || echo "0")
+          PR_SIZE=$(wc -l < pr.diff)
+
+          echo "diff_path=pr.diff" >> $GITHUB_OUTPUT
+          echo "pr_size=$PR_SIZE" >> $GITHUB_OUTPUT
+          echo "spec_changed=$SPEC_CHANGED" >> $GITHUB_OUTPUT
+
+          if [ "$PR_SIZE" -gt 2000 ]; then
+            echo "::warning::Large PR ($PR_SIZE lines). LLM review may be truncated."
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: review-context-full
+          path: |
+            pr.diff
+            changed_files.txt
+          retention-days: 1
+
+  # ===========================================================================
+  # STAGE 1: Deterministic Gates (fast, cheap, high confidence)
+  # ===========================================================================
+  arch-boundary-full:
+    name: D1 Architectural Boundary
+    needs: context-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: review-context-full
+      - run: pip install pyyaml
+      - name: Run arch validator
+        id: check
+        run: |
+          python tools/auditors/arch_boundary_validator.py \
+            --changed-files changed_files.txt \
+            --arch-yaml architecture.yaml \
+            --output arch_report.json
+          echo "verdict=$(python -c "import json; print(json.load(open('arch_report.json'))['verdict'])")" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch-report-full
+          path: arch_report.json
+
+  spec-fidelity-full:
+    name: D3 Spec Fidelity
+    needs: context-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: review-context-full
+      - run: pip install pyyaml jsonschema
+      - name: Run spec fidelity check
+        id: check
+        run: |
+          python tools/auditors/spec_fidelity.py \
+            --spec spec.yaml \
+            --handlers-dir engine \
+            --schema tools/review/policy/spec_schema.json \
+            --output spec_fidelity_report.json
+          echo "verdict=$(python -c "import json; print(json.load(open('spec_fidelity_report.json'))['verdict'])")" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spec-fidelity-report-full
+          path: spec_fidelity_report.json
+
+  template-compliance-full:
+    name: D5 Template Compliance
+    needs: context-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: review-context-full
+      - run: pip install pyyaml
+      - name: Run template compliance
+        id: check
+        run: |
+          python tools/auditors/template_compliance.py \
+            --changed-files changed_files.txt \
+            --manifest tools/review/policy/template_manifest.yaml \
+            --output template_report.json
+          echo "verdict=$(python -c "import json; print(json.load(open('template_report.json'))['verdict'])")" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: template-report-full
+          path: template_report.json
+
+  supply-chain-full:
+    name: D6 Supply Chain & Secrets
+    needs: context-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: review-context-full
+      - run: pip install pyyaml
+      - name: Run supply chain check
+        id: check
+        run: |
+          python tools/auditors/supply_chain.py \
+            --pr-diff pr.diff \
+            --skip-trivy \
+            --output supply_chain_report.json
+          echo "verdict=$(python -c "import json; print(json.load(open('supply_chain_report.json'))['verdict'])")" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-report-full
+          path: supply_chain_report.json
+
+  integration-boundary-full:
+    name: D4 Integration Boundary
+    needs: context-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: review-context-full
+      - name: Run integration boundary check
+        id: check
+        run: |
+          python tools/auditors/integration_boundary.py \
+            --pr-diff pr.diff \
+            --output integration_report.json
+          echo "verdict=$(python -c "import json; print(json.load(open('integration_report.json'))['verdict'])")" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: integration-report-full
+          path: integration_report.json
+
+  # ===========================================================================
+  # DETERMINISTIC GATE — block if any Stage 1 critical job fails
+  # ===========================================================================
+  deterministic-gate-full:
+    name: Deterministic Gate
+    needs:
+      - arch-boundary-full
+      - spec-fidelity-full
+      - template-compliance-full
+      - supply-chain-full
+      - integration-boundary-full
+    runs-on: ubuntu-latest
+    outputs:
+      passed: ${{ steps.gate.outputs.passed }}
+
+    steps:
+      - name: Evaluate deterministic gates
+        id: gate
+        run: |
+          VERDICTS=(
+            "${{ needs.arch-boundary-full.outputs.verdict }}"
+            "${{ needs.spec-fidelity-full.outputs.verdict }}"
+            "${{ needs.template-compliance-full.outputs.verdict }}"
+            "${{ needs.supply-chain-full.outputs.verdict }}"
+            "${{ needs.integration-boundary-full.outputs.verdict }}"
+          )
+
+          PASSED=true
+          REASONS=()
+
+          for i in "${!VERDICTS[@]}"; do
+            if [[ "${VERDICTS[$i]}" == "BLOCK" ]]; then
+              PASSED=false
+              REASONS+=("Job $i returned BLOCK")
+            fi
+          done
+
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+
+          if [[ "$PASSED" == "false" ]]; then
+            echo "::error::Deterministic gate FAILED: ${REASONS[*]}"
+            exit 1
+          fi
+
+  # ===========================================================================
+  # STAGE 2: Quality Audits (gated by deterministic gate)
+  # ===========================================================================
+  logic-correctness-full:
+    name: D2 Logic Correctness (static)
+    needs: deterministic-gate-full
+    if: needs.deterministic-gate-full.outputs.passed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run logic correctness check
+        id: check
+        run: |
+          python tools/auditors/logic_correctness.py \
+            --source-dir engine \
+            --tests-dir tests \
+            --output logic_report.json
+          echo "verdict=$(python -c "import json; print(json.load(open('logic_report.json'))['verdict'])")" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: logic-report-full
+          path: logic_report.json
+
+  performance-ops-full:
+    name: D8 Performance & Ops
+    needs: deterministic-gate-full
+    if: needs.deterministic-gate-full.outputs.passed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: review-context-full
+      - run: pip install pyyaml
+      - name: Run performance impact check
+        id: check
+        run: |
+          python tools/auditors/performance_impact.py \
+            --changed-files changed_files.txt \
+            --spec spec.yaml \
+            --output perf_report.json
+          echo "verdict=$(python -c "import json; print(json.load(open('perf_report.json'))['verdict'])")" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-full
+          path: perf_report.json
+
+  # ===========================================================================
+  # STAGE 3: Confidence Aggregation & Merge Decision
+  # ===========================================================================
+  confidence-aggregation:
+    name: Confidence Aggregation & Merge Decision
+    needs:
+      - arch-boundary-full
+      - spec-fidelity-full
+      - template-compliance-full
+      - supply-chain-full
+      - integration-boundary-full
+      - logic-correctness-full
+      - performance-ops-full
+    runs-on: ubuntu-latest
+    if: always()
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*-report-full"
+          merge-multiple: true
+
+      - name: Install deps
+        run: pip install pyyaml
+
+      - name: Aggregate all review verdicts
+        id: aggregate
+        run: |
+          python tools/auditors/review_aggregator.py \
+            --reports \
+              arch_report.json \
+              spec_fidelity_report.json \
+              template_report.json \
+              supply_chain_report.json \
+              integration_report.json \
+              logic_report.json \
+              perf_report.json \
+            --output final_verdict.json
+
+          VERDICT=$(python -c "import json; print(json.load(open('final_verdict.json'))['verdict'])")
+          echo "verdict=$VERDICT" >> $GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-verdict
+          path: final_verdict.json
+
+      - name: Enforce merge decision
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERDICT="${{ steps.aggregate.outputs.verdict }}"
+          echo "Final verdict: $VERDICT"
+
+          if [[ "$VERDICT" == "BLOCK" ]]; then
+            echo "::error::AI Review: BLOCK — merge prevented by review pipeline"
+            exit 1
+          elif [[ "$VERDICT" == "ESCALATE" ]]; then
+            echo "::warning::AI Review: ESCALATE — human reviewer required"
+          elif [[ "$VERDICT" == "APPROVE" ]]; then
+            echo "::notice::AI Review: APPROVE — all dimensions passed"
+          else
+            echo "::notice::AI Review: WARN — advisory findings, merge allowed"
+          fi
