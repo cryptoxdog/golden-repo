@@ -1,0 +1,210 @@
+# architecture.yaml — machine-readable layer contract
+# Canonical source of truth for the L9 golden repo architectural boundaries.
+# Used by: tools/auditors/arch_boundary_validator.py, tools/review/analyzers/architecture_boundary.py
+# Version: 2.0.0
+
+version: "2.0.0"
+
+layers:
+  transport:
+    path_pattern: "main.py"
+    allowed_imports:
+      - "engine.handlers"
+      - "chassis"
+      - "fastapi"
+      - "uvicorn"
+      - "structlog"
+    forbidden_imports:
+      - "engine.services"
+      - "engine.models"
+      - "engine.core"
+      - "engine.compliance"
+
+  handlers:
+    path_pattern: "engine/handlers/**"
+    allowed_imports:
+      - "engine.services"
+      - "engine.models"
+      - "engine.core"
+      - "engine.compliance"
+      - "engine.config"
+      - "engine.packet"
+      - "engine.arbitration"
+      - "engine.outcomes"
+      - "engine.scoring"
+      - "engine.sync"
+      - "engine.traversal"
+      - "engine.graph"
+    forbidden_imports:
+      - "main"
+      - "engine.handlers"
+      - "fastapi"
+      - "starlette"
+      - "uvicorn"
+
+  services:
+    path_pattern: "engine/services/**"
+    allowed_imports:
+      - "engine.models"
+      - "engine.core"
+      - "engine.config"
+      - "engine.compliance"
+    forbidden_imports:
+      - "engine.handlers"
+      - "main"
+      - "fastapi"
+      - "starlette"
+      - "uvicorn"
+
+  models:
+    path_pattern: "engine/models/**"
+    allowed_imports:
+      - "engine.core"
+      - "pydantic"
+      - "typing"
+      - "datetime"
+      - "uuid"
+    forbidden_imports:
+      - "engine.handlers"
+      - "engine.services"
+      - "fastapi"
+      - "starlette"
+      - "uvicorn"
+
+  core:
+    path_pattern: "engine/core/**"
+    allowed_imports: []
+    forbidden_imports:
+      - "engine.handlers"
+      - "engine.services"
+      - "engine.models"
+      - "fastapi"
+      - "starlette"
+      - "uvicorn"
+
+  compliance:
+    path_pattern: "engine/compliance/**"
+    allowed_imports:
+      - "engine.config"
+      - "engine.models"
+      - "engine.core"
+      - "asyncpg"
+      - "pydantic"
+    forbidden_imports:
+      - "engine.handlers"
+      - "engine.services"
+      - "fastapi"
+      - "starlette"
+
+  config:
+    path_pattern: "engine/config/**"
+    allowed_imports:
+      - "engine.core"
+      - "engine.models"
+      - "pathlib"
+      - "yaml"
+      - "pydantic"
+    forbidden_imports:
+      - "engine.handlers"
+      - "engine.services"
+      - "fastapi"
+
+  packet:
+    path_pattern: "engine/packet/**"
+    allowed_imports:
+      - "engine.models"
+      - "engine.core"
+      - "l9_core"
+      - "pydantic"
+      - "hashlib"
+      - "json"
+    forbidden_imports:
+      - "engine.handlers"
+      - "engine.services"
+      - "fastapi"
+
+  arbitration:
+    path_pattern: "engine/arbitration/**"
+    allowed_imports:
+      - "engine.config"
+      - "engine.models"
+      - "pydantic"
+    forbidden_imports:
+      - "engine.handlers"
+      - "fastapi"
+
+  outcomes:
+    path_pattern: "engine/outcomes/**"
+    allowed_imports:
+      - "engine.graph"
+      - "engine.scoring"
+      - "engine.config"
+      - "engine.models"
+      - "pydantic"
+    forbidden_imports:
+      - "engine.handlers"
+      - "fastapi"
+
+  review_tools:
+    path_pattern: "tools/**"
+    allowed_imports:
+      - "tools"
+      - "typing"
+      - "pathlib"
+      - "json"
+      - "yaml"
+      - "ast"
+      - "subprocess"
+      - "re"
+      - "dataclasses"
+      - "argparse"
+      - "jsonschema"
+      - "fnmatch"
+    forbidden_imports:
+      - "engine.handlers"
+      - "engine.services"
+      - "fastapi"
+
+  l9_core:
+    path_pattern: "l9_core/**"
+    allowed_imports:
+      - "pydantic"
+      - "typing"
+      - "hashlib"
+      - "json"
+      - "uuid"
+      - "datetime"
+    forbidden_imports:
+      - "engine"
+      - "fastapi"
+      - "starlette"
+
+handler_conventions:
+  signature: "async def handle_{action}(tenant: str, payload: dict) -> dict"
+  required_decorators: []
+  forbidden_patterns:
+    - "import requests"      # synchronous HTTP forbidden
+    - "time.sleep"           # blocking operations forbidden
+    - "os.system"            # shell injection risk
+    - "eval("                # code execution
+    - "exec("                # code execution
+    - "pickle.load"          # unsafe deserialization
+    - "yaml.load("           # unsafe YAML load (use safe_load)
+
+protected_design_rules:
+  - "Engine never defines custom HTTP routes"
+  - "Engine never owns auth, rate limiting, or tenant resolution"
+  - "engine/handlers.py is the ONLY chassis bridge"
+  - "spec.yaml is source of truth for action coverage"
+  - "No handler imports another handler"
+  - "No model imports a service"
+  - "All scores clamped to [0.0, 1.0]"
+
+spec_contract:
+  root_spec_file: "spec.yaml"
+  domains_spec_glob: "domains/**/spec.yaml"
+  all_actions_must_have_registered_handlers: true
+
+novel_pattern_policy:
+  unclassified_files_default: "ESCALATE"  # never auto-APPROVE unknown placement
+  annotation_to_override: "# arch-exception: <reason>"
