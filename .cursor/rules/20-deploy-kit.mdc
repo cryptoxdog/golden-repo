@@ -1,0 +1,7 @@
+---
+description: Deploy kit rules
+alwaysApply: true
+---
+
+- Generated services must pass predeploy check before readiness.
+- Generated services must expose execute, health, and readiness.

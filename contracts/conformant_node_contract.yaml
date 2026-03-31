@@ -1,0 +1,95 @@
+contract:
+  id: l9.conformant_node
+  version: 1.0.0
+  status: canonical
+  purpose: >-
+    Defines the minimum runtime, protocol, deployment, and operational requirements for a node
+    to be considered L9-conformant.
+
+node_role:
+  definition: >-
+    A conformant node is a service that executes work using PacketEnvelope as its canonical
+    network contract and integrates cleanly with Gate and the L9 golden template.
+
+required_http_surfaces:
+  - path: /v1/execute
+    method: POST
+    purpose: Canonical execution entrypoint.
+  - path: /v1/health
+    method: GET
+    purpose: Liveness and adapter status.
+  - path: /v1/readiness
+    method: GET
+    purpose: Runtime readiness and state-store readiness.
+optional_http_surfaces:
+  - path: /metrics
+    method: GET
+    purpose: Observability endpoint if enabled by policy.
+
+required_runtime_behaviors:
+  startup:
+    - must run typed config load before serving traffic
+    - must run preflight before readiness becomes true
+    - must initialize runtime store before accepting execution
+    - must register handlers before readiness becomes true
+  execution:
+    - must accept PacketEnvelope as canonical execution body
+    - must reject non-canonical execution payloads outside allowed dev mode
+    - must validate destination, action, packet type, signature, and policy
+    - must enforce required idempotency for configured side-effecting actions
+    - must reject duplicate packet receipts before handler execution
+    - must return PacketEnvelope response or failure packet
+  derivation:
+    - must derive child packets rather than mutate the incoming packet
+    - must preserve lineage rules from packet_envelope_v1
+    - must preserve tenant immutability
+  health:
+    - /v1/health must not depend on external network calls
+    - /v1/readiness must fail if runtime store is not usable
+
+required_configuration:
+  - environment
+  - runtime_mode
+  - node_name
+  - service_name
+  - service_version
+  - allowed_actions
+  - allowed_packet_types
+  - state_db_path
+  - signing_algorithm
+  - signature policy
+
+required_policy_controls:
+  - replay_enabled
+  - require_signature
+  - require_idempotency_for_actions
+  - attachment_allowed_schemes
+  - max_packet_bytes
+  - max_hop_depth
+  - max_delegation_depth
+  - max_attachments
+  - max_attachment_size_bytes
+
+required_deployment_controls:
+  - predeploy_check executable
+  - deterministic entrypoint
+  - health and readiness verification after startup
+  - rollback path
+  - backup and restore path
+
+required_gate_compatibility:
+  registration:
+    - must expose a stable public or internal URL
+    - must expose supported actions
+    - must declare health endpoint
+    - must declare timeout_ms
+  execution:
+    - must accept Gate-originated PacketEnvelopes without custom ingress translation
+    - must preserve Gate-issued lineage and routing metadata
+
+non_conformance_conditions:
+  - uses non-PacketEnvelope network execution contract
+  - bypasses preflight before readiness
+  - mutates tenant context across derivation
+  - lacks required health/readiness surfaces
+  - requires bespoke transport behavior outside declared protocol rules

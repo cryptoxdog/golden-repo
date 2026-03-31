@@ -1,0 +1,8 @@
+---
+description: PacketEnvelope invariants
+alwaysApply: true
+---
+
+- Preserve tenant immutability.
+- Preserve lineage derivation rules.
+- Do not add alternate network execution contracts.
