@@ -1,0 +1,7 @@
+from __future__ import annotations
+
+from pydantic import BaseModel
+
+
+class HealthcheckPayload(BaseModel):
+    detail: bool = False

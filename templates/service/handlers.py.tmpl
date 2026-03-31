@@ -1,0 +1,11 @@
+from __future__ import annotations
+
+from engine.handlers import register_action_handler
+
+
+async def healthcheck_handler(tenant: str, payload: dict) -> dict:
+    return {"status": "success", "data": {"ok": True, "tenant": tenant}}
+
+
+def register_domain_handlers() -> None:
+    register_action_handler("healthcheck", healthcheck_handler)

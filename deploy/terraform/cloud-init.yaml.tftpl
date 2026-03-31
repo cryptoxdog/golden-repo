@@ -1,0 +1,29 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - git
+  - python3
+  - python3-pip
+  - ca-certificates
+write_files:
+  - path: /opt/l9/bin/deploy_remote.sh
+    permissions: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      RELEASE_DIR="/opt/l9/current"
+      mkdir -p /opt/l9/current /opt/l9/shared /opt/l9/releases
+      tar -xzf /opt/l9/releases/release.tar.gz -C "$RELEASE_DIR"
+      cd "$RELEASE_DIR"
+      cp /opt/l9/shared/service.env .env
+      python3 scripts/predeploy_check.py
+      docker compose -f infrastructure/docker/docker-compose.prod.yml --env-file .env up -d --build
+      python3 scripts/wait_for_http.py http://127.0.0.1:${container_port}/v1/health 60
+runcmd:
+  - apt-get update
+  - apt-get install -y docker.io docker-compose-v2 || true
+  - systemctl enable docker
+  - systemctl start docker
+  - mkdir -p /opt/l9/bin /opt/l9/shared /opt/l9/releases /var/lib/l9 /backups

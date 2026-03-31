@@ -1,0 +1,10 @@
+service_name: __SERVICE_NAME__
+package_name: __PACKAGE_NAME__
+app_module: __PACKAGE_NAME__.app:app
+public_service: false
+allowed_actions:
+  - healthcheck
+idempotency_required_actions: []
+signing_mode: ed25519
+deploy_region: nyc3
+droplet_size: s-4vcpu-8gb-amd
