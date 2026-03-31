@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReviewResult v2",
+  "description": "Schema for per-dimension AI review results. All 8 dimensions produce output conforming to this schema.",
+  "type": "object",
+  "required": [
+    "dimension",
+    "verdict",
+    "confidence",
+    "evidence",
+    "reasoning_chain",
+    "review_schema_version"
+  ],
+  "properties": {
+    "dimension": {
+      "type": "string",
+      "enum": [
+        "architectural_fit",
+        "business_logic",
+        "spec_fidelity",
+        "integration_boundary",
+        "template_compliance",
+        "security",
+        "test_sufficiency",
+        "performance_ops"
+      ],
+      "description": "Which of the 8 review dimensions produced this result"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["APPROVE", "WARN", "BLOCK", "ESCALATE"],
+      "description": "Merge recommendation from this dimension"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "Reviewer confidence in the verdict (not the PR quality). Deterministic = 0.97-0.99. LLM = 0.5-0.9."
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Specific evidence items supporting the verdict",
+      "items": {
+        "type": "object",
+        "required": ["file", "line", "finding", "severity"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer", "minimum": 0 },
+          "snippet": { "type": ["string", "null"] },
+          "finding": { "type": "string", "description": "Human-readable description of the finding" },
+          "severity": {
+            "type": "string",
+            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+          }
+        }
+      }
+    },
+    "reasoning_chain": {
+      "type": "array",
+      "description": "Step-by-step reasoning that produced the verdict",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "suggested_fix": {
+      "type": ["string", "null"],
+      "description": "Actionable remediation for the author, if applicable"
+    },
+    "spec_coverage": {
+      "type": ["object", "null"],
+      "description": "Populated by spec_fidelity and business_logic dimensions",
+      "properties": {
+        "rules_found": { "type": "integer" },
+        "rules_covered": { "type": "integer" },
+        "coverage_ratio": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+        "missing_rules": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "llm_model": {
+      "type": ["string", "null"],
+      "description": "LLM model used for semantic review, null for deterministic dimensions"
+    },
+    "review_duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "review_schema_version": {
+      "type": "string",
+      "const": "2.0.0"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
