@@ -1,0 +1,3 @@
+Review only ambiguous, high-risk semantic concerns.
+Never override deterministic policy.
+Output findings, rationale_summary, suggested_tests, and repro_steps.

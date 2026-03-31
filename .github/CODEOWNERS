@@ -1,0 +1,6 @@
+# Critical policy and workflow ownership
+/.github/workflows/* @platform-team
+/tools/review/policy/* @platform-team
+/spec.yaml @platform-team
+/engine/models/* @platform-team
+/engine/handlers.py @platform-team

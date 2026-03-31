@@ -1,0 +1,33 @@
+version: "1.0.0"
+
+required_files:
+  - path: "spec.yaml"
+  - path: "pyproject.toml"
+  - path: "README.md"
+  - path: ".l9-template-version"
+  - path: "engine/handlers.py"
+  - path: "tools/review/policy/review_policy.yaml"
+  - path: "tools/review/policy/architecture.yaml"
+  - path: "tools/review/policy/review_exceptions.yaml"
+  - path: ".github/workflows/ai-review.yml"
+
+required_directories:
+  - path: "engine"
+  - path: "tests"
+  - path: "tools/review"
+  - path: "tools/review/analyzers"
+  - path: "tools/review/policy"
+  - path: "tools/review/evals"
+
+protected_files:
+  - path: ".github/workflows/ai-review.yml"
+
+required_symbols:
+  - file: "engine/handlers.py"
+    symbols:
+      - "register_all"
+
+prohibited_paths:
+  - "engine/api/**"
+  - "engine/routes/**"
+  - "engine/gateway/**"

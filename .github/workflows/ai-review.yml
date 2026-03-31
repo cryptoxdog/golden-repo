@@ -1,0 +1,172 @@
+name: AI Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    name: Classify PR
+    runs-on: ubuntu-latest
+    outputs:
+      risk: ${{ steps.classify.outputs.risk }}
+      run_semantic_review: ${{ steps.classify.outputs.run_semantic_review }}
+      changed_files_json: ${{ steps.classify.outputs.changed_files_json }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: python -m pip install --upgrade pip pyyaml
+      - name: Classify PR
+        id: classify
+        run: |
+          python tools/review/classify_pr.py             --base-ref "origin/${{ github.base_ref }}"             --head-ref "HEAD"             --policy "tools/review/policy/review_policy.yaml"             --output pr_classification.json
+          echo "risk=$(python - <<'PY'
+import json
+print(json.load(open('pr_classification.json'))['risk'])
+PY
+)" >> $GITHUB_OUTPUT
+          echo "run_semantic_review=$(python - <<'PY'
+import json
+print(str(json.load(open('pr_classification.json'))['run_semantic_review']).lower())
+PY
+)" >> $GITHUB_OUTPUT
+          echo "changed_files_json=$(python - <<'PY'
+import json
+print(json.dumps(json.load(open('pr_classification.json'))['changed_files']))
+PY
+)" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr-classification
+          path: pr_classification.json
+
+  deterministic:
+    name: Deterministic Review
+    runs-on: ubuntu-latest
+    needs: classify
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: python -m pip install --upgrade pip pyyaml jsonschema
+      - name: Build review context
+        run: |
+          python tools/review/build_context.py             --base-ref "origin/${{ github.base_ref }}"             --head-ref "HEAD"             --output review_context.json
+      - name: Template compliance
+        run: |
+          python tools/review/analyzers/template_compliance.py             --repo-root .             --manifest tools/review/policy/template_manifest.yaml             --context review_context.json             --output template_report.json
+      - name: Architecture boundary
+        run: |
+          python tools/review/analyzers/architecture_boundary.py             --repo-root .             --architecture tools/review/policy/architecture.yaml             --context review_context.json             --output architecture_report.json
+      - name: Protected paths
+        run: |
+          python tools/review/analyzers/protected_paths.py             --policy tools/review/policy/review_policy.yaml             --context review_context.json             --output protected_paths_report.json
+      - name: Spec coverage
+        run: |
+          python tools/review/analyzers/spec_coverage.py             --repo-root .             --spec spec.yaml             --output spec_coverage_report.json
+      - name: YAML validation
+        run: |
+          python tools/review/analyzers/yaml_validation.py             --policy tools/review/policy/review_policy.yaml             --output yaml_validation_report.json
+      - name: Aggregate deterministic reports
+        id: aggregate
+        run: |
+          python tools/review/aggregate.py             --reports               template_report.json               architecture_report.json               protected_paths_report.json               spec_coverage_report.json               yaml_validation_report.json             --policy tools/review/policy/review_policy.yaml             --output deterministic_verdict.json
+          echo "verdict=$(python - <<'PY'
+import json
+print(json.load(open('deterministic_verdict.json'))['final_verdict'])
+PY
+)" >> $GITHUB_OUTPUT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deterministic-review
+          path: |
+            review_context.json
+            template_report.json
+            architecture_report.json
+            protected_paths_report.json
+            spec_coverage_report.json
+            yaml_validation_report.json
+            deterministic_verdict.json
+
+  semantic:
+    name: Semantic Review
+    runs-on: ubuntu-latest
+    needs: [classify, deterministic]
+    if: needs.classify.outputs.run_semantic_review == 'true' && needs.deterministic.outputs.verdict != 'BLOCK'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: deterministic-review
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: python -m pip install --upgrade pip pyyaml
+      - name: Run semantic review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python tools/review/llm/semantic_review.py             --context review_context.json             --policy tools/review/policy/review_policy.yaml             --output semantic_review.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: semantic-review
+          path: semantic_review.json
+
+  final:
+    name: Final Decision
+    runs-on: ubuntu-latest
+    needs: [classify, deterministic, semantic]
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*review*"
+          merge-multiple: true
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Final aggregate
+        run: |
+          python tools/review/aggregate.py             --reports deterministic_verdict.json semantic_review.json             --policy tools/review/policy/review_policy.yaml             --output final_verdict.json || true
+      - name: Format PR comment
+        run: |
+          python tools/review/format_pr_comment.py             --report final_verdict.json             --output pr_comment.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: final-review
+          path: |
+            final_verdict.json
+            pr_comment.md
+      - name: Enforce final verdict
+        run: |
+          python - <<'PY'
+import json, sys
+data = json.load(open("final_verdict.json"))
+print(json.dumps(data, indent=2))
+if data["final_verdict"] in {"BLOCK", "ESCALATE"}:
+    sys.exit(1)
+PY

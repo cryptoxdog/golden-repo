@@ -1,0 +1,43 @@
+service:
+  name: "golden-repo-ai-review-system"
+  version: "1.0.0"
+  description: "Spec-driven engine surface used to validate review system wiring"
+
+actions:
+  - name: "execute"
+    description: "Execute an action request"
+    input_schema:
+      type: object
+      properties:
+        action_name:
+          type: string
+        parameters:
+          type: object
+      required: ["action_name", "parameters"]
+    output_schema:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+        action_name:
+          type: string
+        parameters:
+          type: object
+      required: ["accepted", "action_name", "parameters"]
+
+  - name: "describe"
+    description: "Describe engine capabilities"
+    input_schema:
+      type: object
+      properties: {}
+      required: []
+    output_schema:
+      type: object
+      properties:
+        service:
+          type: string
+        actions:
+          type: array
+          items:
+            type: string
+      required: ["service", "actions"]

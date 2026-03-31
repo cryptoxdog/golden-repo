@@ -1,0 +1,137 @@
+version: "1.0.0"
+
+layers:
+  engine_handlers:
+    path_patterns:
+      - "engine/handlers.py"
+    allowed_import_prefixes:
+      - "engine.config"
+      - "engine.services"
+      - "engine.models"
+      - "engine.compliance"
+      - "engine.core"
+      - "structlog"
+      - "typing"
+      - "pydantic"
+      - "chassis.router"
+    forbidden_import_prefixes:
+      - "fastapi"
+      - "starlette"
+      - "uvicorn"
+      - "requests"
+      - "sqlalchemy"
+      - "tools.review"
+
+  engine_services:
+    path_patterns:
+      - "engine/services/**"
+    allowed_import_prefixes:
+      - "engine.models"
+      - "engine.config"
+      - "engine.compliance"
+      - "engine.core"
+      - "structlog"
+      - "typing"
+      - "pydantic"
+    forbidden_import_prefixes:
+      - "engine.handlers"
+      - "fastapi"
+      - "starlette"
+      - "uvicorn"
+      - "tools.review"
+
+  engine_models:
+    path_patterns:
+      - "engine/models/**"
+    allowed_import_prefixes:
+      - "engine.core"
+      - "typing"
+      - "pydantic"
+      - "datetime"
+      - "uuid"
+    forbidden_import_prefixes:
+      - "engine.handlers"
+      - "engine.services"
+      - "fastapi"
+      - "starlette"
+      - "uvicorn"
+      - "tools.review"
+
+  engine_config:
+    path_patterns:
+      - "engine/config/**"
+    allowed_import_prefixes:
+      - "engine.core"
+      - "engine.models"
+      - "typing"
+      - "pydantic"
+      - "yaml"
+      - "pathlib"
+    forbidden_import_prefixes:
+      - "engine.handlers"
+      - "fastapi"
+      - "starlette"
+      - "uvicorn"
+      - "tools.review"
+
+  engine_core:
+    path_patterns:
+      - "engine/core/**"
+      - "engine/compliance/**"
+    allowed_import_prefixes:
+      - "typing"
+      - "dataclasses"
+      - "datetime"
+      - "enum"
+      - "pydantic"
+      - "structlog"
+    forbidden_import_prefixes:
+      - "engine.handlers"
+      - "engine.services"
+      - "fastapi"
+      - "starlette"
+      - "uvicorn"
+      - "tools.review"
+
+  review_tools:
+    path_patterns:
+      - "tools/review/**"
+    allowed_import_prefixes:
+      - "tools.review"
+      - "typing"
+      - "pathlib"
+      - "json"
+      - "yaml"
+      - "ast"
+      - "subprocess"
+      - "fnmatch"
+      - "dataclasses"
+      - "re"
+    forbidden_import_prefixes:
+      - "engine.handlers"
+      - "engine.services"
+      - "fastapi"
+      - "starlette"
+
+handler_contract:
+  file: "engine/handlers.py"
+  required_functions:
+    - "register_all"
+  allowed_signature_regex: '^async def handle_[a-z0-9_]+\(tenant: str, payload: dict\) -> dict:$'
+  required_payload_validation: true
+  forbid_raw_payload_access_after_validation: true
+
+transport_contract:
+  no_fastapi_inside_engine: true
+  chassis_is_only_http_boundary: true
+
+spec_contract:
+  root_spec_file: "spec.yaml"
+  domains_spec_glob: "domains/**/spec.yaml"
+  all_actions_must_have_registered_handlers: true
+
+protected_design_rules:
+  - "Engine never defines custom HTTP routes"
+  - "Engine never owns auth, rate limiting, or tenant resolution"
+  - "Engine handler is the only chassis bridge"
+  - "Spec is source of truth for action coverage"

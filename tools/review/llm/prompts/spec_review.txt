@@ -1,0 +1,2 @@
+Review spec intent fidelity for changed actions only.
+Map rules to code paths and emit suggested tests for uncovered rules.

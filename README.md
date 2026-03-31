@@ -1,97 +1,42 @@
-# 🏆 Golden Repo — L9 Microservice Template
+# Golden Repo AI Review System v2
 
-> The reference implementation for all L9 constellation services.
-> Fork this. Fill in `.env`. Ship.
+Deterministic-first review subsystem for L9-aligned engine repositories.
 
-## Stack
-- **Runtime:** FastAPI + Uvicorn (Python 3.11)
-- **Packaging:** Poetry
-- **Container:** Docker + Compose
-- **CI:** Ruff, MyPy, Semgrep, SonarCloud, GitGuardian
-- **Review:** CodeRabbit + Copilot
-- **Toolbox:** Venture Forge Toolbox (16 DevOps scripts)
+## Included capabilities
 
-## Quick Start
+- PR context construction from git
+- PR classification and risk routing
+- deterministic blocking analyzers
+- protected path escalation
+- spec coverage enforcement
+- YAML and schema validation
+- aggregate decision engine
+- waiver support
+- PR comment formatter
+- semantic escalation with suggested tests
+- historical evaluation harness
 
-### New service from this template
-1. Click **"Use this template"** on GitHub
-2. `cp .env.template .env.local` → fill in `APP_NAME`, `APP_API_KEY`
-3. Update `sonar-project.properties` → set `sonar.projectKey`
-4. `docker compose up --build`
+## Local workflow
 
-### Local dev (no Docker)
 ```bash
-poetry install
-cp .env.template .env.local
-tools/dev/dev_up.sh
+python tools/review/build_context.py --base-ref HEAD~1 --head-ref HEAD --output review_context.json
+python tools/review/classify_pr.py --base-ref HEAD~1 --head-ref HEAD --policy tools/review/policy/review_policy.yaml --output pr_classification.json
+python tools/review/analyzers/template_compliance.py --repo-root . --manifest tools/review/policy/template_manifest.yaml --context review_context.json --output template_report.json
+python tools/review/analyzers/architecture_boundary.py --repo-root . --architecture tools/review/policy/architecture.yaml --context review_context.json --output architecture_report.json
+python tools/review/analyzers/spec_coverage.py --repo-root . --spec spec.yaml --output spec_coverage_report.json
+python tools/review/aggregate.py --reports template_report.json architecture_report.json spec_coverage_report.json --policy tools/review/policy/review_policy.yaml --output final_verdict.json
+python tools/review/format_pr_comment.py --report final_verdict.json --output pr_comment.md
 ```
 
-## Project Structure
-```
-golden-repo/
-├── engine/              ← Your service logic here
-│   ├── main.py          ← FastAPI app + /health + /v1/execute
-│   └── settings.py      ← Pydantic settings (reads .env)
-├── tests/
-│   ├── unit/
-│   └── integration/
-├── tools/               ← Venture Forge Toolbox (never edit)
-├── .github/workflows/   ← CI quality gate + release drafter
-├── .semgrep/            ← 8 Python security rules
-├── templates/           ← .env, styleguide, dev.conf templates
-├── sonar-project.properties
-├── pyproject.toml       ← Poetry deps
-├── Dockerfile           ← Dev image
-├── Dockerfile.prod      ← Production image (non-root user)
-└── docker-compose.yml   ← Local dev stack
-```
+## Waivers
 
-## API Contract
-```
-POST /v1/execute
-{
-  "action": "match|sync|health|enrich",
-  "tenant": "<tenant_id>",
-  "payload": {}
-}
-```
+Edit `tools/review/policy/review_exceptions.yaml` to define time-bounded exceptions by
+`rule_id` and `file_pattern`.
 
-## Toolbox Commands
+## Evals
+
+Replay historical or synthetic review cases with:
+
 ```bash
-tools/infra/check_env.sh          # Validate .env
-tools/infra/docker_validate.sh    # Validate Dockerfiles + compose
-tools/infra/test_everything.sh    # Full 11-section test suite
-tools/infra/deep_mri.sh           # VPS diagnostics
-tools/deploy/deploy.sh            # Deploy to VPS
+python tools/review/evals/replay.py   --cases tests/fixtures/eval_cases.json   --policy tools/review/policy/review_policy.yaml   --output eval_results.json
 ```
-
-## CI Secrets Required
-| Secret | Source |
-|--------|--------|
-| `SONAR_TOKEN` | sonarcloud.io/account/security |
-| `GITGUARDIAN_API_KEY` | dashboard.gitguardian.com/api |
-
-## CI Variables Required
-| Variable | Value |
-|----------|-------|
-| `PYTHON_VERSION` | `3.11` |
-| `SONAR_PROJECT_KEY` | `cryptoxdog_YOUR-REPO` |
-| `SONAR_ORG` | `cryptoxdog` |
-
-## CI/CD Workflows
-
-All active workflows in `.github/workflows/`:
-
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| `ci.yml` | push / PR | Base lint (ruff, mypy), audit engine (27 rules), pytest, contract verification |
-| `ci-quality.yml` | push / PR | Quality gates — shellcheck, bandit, ruff, SonarCloud |
-| `perplexity-audit.yml` | schedule | Automated tech debt audit via Perplexity API |
-| `sbom.yml` | push / PR / release | Software Bill of Materials generation (CycloneDX JSON + XML) |
-| `secret-rotation-reminder.yml` | quarterly cron | Opens a GitHub Issue checklist for rotating all secrets |
-| `slsa-build.yml` | version tags | SLSA Build Level 3 provenance + attestation via GHCR |
-| `dependency-review.yml` | PR to main | Blocks PRs with moderate+ CVEs or disallowed licenses |
-| `release-drafter.yml` | push to main / PR | Auto-drafts release notes from PR labels |
-
----
-*Part of the L9 Constellation — [venture-forge-toolbox](https://github.com/cryptoxdog/venture-forge-toolbox)*
