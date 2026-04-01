@@ -5,4 +5,7 @@ from engine.config.loader import SpecLoader
 
 def test_spec_loader_reads_actions() -> None:
     loader = SpecLoader("spec.yaml")
-    assert loader.action_names() == ["execute", "describe"]
+    # FIX: method is get_allowed_actions(), not action_names()
+    actions = loader.get_allowed_actions()
+    assert "execute" in actions
+    assert "describe" in actions

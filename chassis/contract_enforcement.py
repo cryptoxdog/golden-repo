@@ -1,40 +1,61 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from app.contract_registry import load_contract_bundle
+from chassis.types import PacketEnvelope
+
+logger = logging.getLogger(__name__)
 
 
-class ContractViolation(ValueError):
+class ContractViolation(Exception):
     pass
 
 
-def enforce_packet_contract(raw_packet: dict[str, Any]) -> None:
-    bundle = load_contract_bundle()
+def enforce_packet_contract(packet: PacketEnvelope) -> None:
+    errors: list[str] = []
 
-    header = raw_packet.get('header')
-    if not isinstance(header, dict):
-        raise ContractViolation('packet.header is required')
+    if not packet.packet_id:
+        errors.append("packet_id is empty")
+    if not packet.schema_version or packet.schema_version != "1.1":
+        errors.append(f"schema_version must be '1.1', got '{packet.schema_version}'")
+    if not packet.idempotency_key:
+        errors.append("idempotency_key is empty")
+    if not packet.source_node:
+        errors.append("source_node is empty")
+    if not packet.destination_node:
+        errors.append("destination_node is empty")
+    if not packet.action:
+        errors.append("action is empty")
 
-    schema_version = header.get('schema_version')
-    if schema_version != bundle.packet_version:
-        raise ContractViolation(
-            f'packet schema_version must equal canonical protocol version {bundle.packet_version}, got {schema_version!r}'
-        )
+    t = packet.tenant
+    if not t.actor:
+        errors.append("tenant.actor is empty")
+    if not t.on_behalf_of:
+        errors.append("tenant.on_behalf_of is empty")
+    if not t.originator:
+        errors.append("tenant.originator is empty")
+    if not t.org_id:
+        errors.append("tenant.org_id is empty")
 
-    packet_type = header.get('packet_type')
-    if packet_type not in bundle.packet_types:
-        raise ContractViolation(f'packet_type {packet_type!r} is not part of canonical protocol')
+    if packet.lineage.generation < 0:
+        errors.append("lineage.generation must be >= 0")
+    if not packet.lineage.root_id:
+        errors.append("lineage.root_id is empty")
 
-    mandatory_top_level = ('header', 'address', 'tenant', 'payload', 'security', 'governance', 'delegation_chain', 'hop_trace', 'lineage', 'attachments')
-    for field in mandatory_top_level:
-        if field not in raw_packet:
-            raise ContractViolation(f'mandatory protocol field missing: {field}')
+    if packet.security is None:
+        errors.append("security section is absent")
+    else:
+        if not packet.security.content_hash:
+            errors.append("security.content_hash is empty")
+        if not packet.security.envelope_hash:
+            errors.append("security.envelope_hash is empty")
+        if not packet.verify_content_hash():
+            errors.append("security.content_hash does not match payload")
 
+    if errors:
+        msg = "; ".join(errors)
+        logger.error("contract_violation", extra={"errors": errors, "packet_id": packet.packet_id})
+        raise ContractViolation(f"PacketEnvelope contract violation: {msg}")
 
-def enforce_registration_contract(registration_payload: dict[str, Any]) -> None:
-    bundle = load_contract_bundle()
-    required = set(bundle.required_registration_fields)
-    missing = sorted(field for field in required if field not in registration_payload)
-    if missing:
-        raise ContractViolation(f'registration payload missing required fields: {", ".join(missing)}')
+    logger.debug("contract_enforced", extra={"packet_id": packet.packet_id})

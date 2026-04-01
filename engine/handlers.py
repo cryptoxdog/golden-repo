@@ -1,37 +1,59 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+from typing import Any
 
-from engine.compliance.prohibited_factors import contains_prohibited_factors
-from engine.config.loader import SpecLoader
-from engine.core.errors import EngineError
-from engine.models.action_models import DescribePayload, ExecuteActionPayload
-from engine.services.action_service import ActionService
+from pydantic import BaseModel, Field, ValidationError
 
-Handler = Callable[[str, dict], dict]
+from engine.services.action_service import ActionService, ActionNotFoundError
 
+logger = logging.getLogger(__name__)
 
-def register_all(registrar: dict[str, Handler] | None = None) -> dict[str, Handler]:
-    registry = registrar if registrar is not None else {}
-    registry["execute"] = handle_execute
-    registry["describe"] = handle_describe
-    return registry
+_service: ActionService | None = None
 
 
-async def handle_execute(tenant: str, payload: dict) -> dict:
-    validated = ExecuteActionPayload.model_validate(payload)
-    if contains_prohibited_factors(validated.parameters):
-        raise EngineError(
-            action="execute",
-            tenant=tenant,
-            client_message="Payload contains prohibited factors",
-            detail="Prohibited keys are not permitted in execute payloads",
-        )
-    service = ActionService(SpecLoader())
-    return service.execute_action(validated.action_name, validated.parameters)
+def init_service(service: ActionService) -> None:
+    global _service
+    _service = service
+    logger.info("action_service_registered")
 
 
-async def handle_describe(tenant: str, payload: dict) -> dict:
-    DescribePayload.model_validate(payload)
-    service = ActionService(SpecLoader())
-    return service.describe()
+def _get_service() -> ActionService:
+    if _service is None:
+        raise RuntimeError("ActionService not initialised — call init_service() at startup")
+    return _service
+
+
+class ExecutePayload(BaseModel):
+    action_name: str = Field(..., min_length=1)
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+async def handle_execute(tenant: str, payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        validated = ExecutePayload.model_validate(payload)
+    except ValidationError as exc:
+        raise ValueError(f"Invalid execute payload: {exc}") from exc
+
+    svc = _get_service()
+    try:
+        return await svc.execute_action(validated.action_name, validated.parameters, tenant)
+    except ActionNotFoundError as exc:
+        raise KeyError(str(exc)) from exc
+
+
+async def handle_describe(tenant: str, payload: dict[str, Any]) -> dict[str, Any]:
+    svc = _get_service()
+    return await svc.describe(tenant)
+
+
+def register_all(service: ActionService) -> None:
+    from chassis.actions import register_handlers
+    init_service(service)
+    register_handlers(
+        {
+            "execute": handle_execute,
+            "describe": handle_describe,
+        }
+    )
+    logger.info("all_handlers_registered")

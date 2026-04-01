@@ -166,7 +166,7 @@ def check_security(files: list[Path], result: AuditResult):
         # Rule 7: f-string in Cypher (LIMIT/SKIP/WHERE values)
         for i, line in enumerate(lines, 1):
             # Detect f-strings with LIMIT/SKIP value interpolation
-            if re.search(r'f["'].*LIMIT\s*\{', line) or re.search(r'f["'].*SKIP\s*\{', line):
+            if re.search(r'f["\'].*LIMIT\s*\{', line) or re.search(r'f["\'].*SKIP\s*\{', line):
                 counter += 1
                 result.add(
                     severity="CRITICAL", code=f"C-{counter:03d}", rule=7,
