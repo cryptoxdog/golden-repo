@@ -14,6 +14,12 @@ class DatabaseConfig:
     name: str = os.getenv("CRM_DB_NAME", "crm_ai")
     user: str = os.getenv("CRM_DB_USER", "crm_service")
     password: str = os.getenv("CRM_DB_PASSWORD", "")
+
+    def __post_init__(self) -> None:
+        if not self.password:
+            raise ValueError(
+                "CRM_DB_PASSWORD must be set; refusing to start with empty credential"
+            )
     pool_min: int = int(os.getenv("CRM_DB_POOL_MIN", "2"))
     pool_max: int = int(os.getenv("CRM_DB_POOL_MAX", "10"))
     statement_timeout_ms: int = int(os.getenv("CRM_DB_TIMEOUT_MS", "30000"))
