@@ -27,10 +27,10 @@ jobs:
           python -m pip install pyyaml pytest
 
       - name: Validate canonical contract alignment
-        run: python scripts/validate_contract_alignment.py --repo-root . --manifest templates/service/service.manifest.yaml
+        run: python scripts/validate_contract_alignment.py --repo-root . --manifest templates/service/service.manifest.protocol.yaml
 
       - name: Validate manifest directly
-        run: python deploy/scripts/validate_manifest.py templates/service/service.manifest.yaml
+        run: python deploy/scripts/validate_manifest.py templates/service/service.manifest.protocol.yaml
 
       - name: Run contract tests
         run: pytest tests/contracts -q
