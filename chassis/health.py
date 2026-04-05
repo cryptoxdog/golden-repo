@@ -1,137 +1,95 @@
-"""
---- L9_META ---
-l9_schema: 1
-origin: chassis
-engine: "*"
-layer: [api]
-tags: [chassis, health, readiness, liveness, engine-agnostic]
-owner: platform-team
-status: active
---- /L9_META ---
-
-chassis/health.py — Universal Health Check Aggregator
-
-Engines register named health probes at startup.
-The chassis runs them all and aggregates to a single status.
-
-    healthy  → all probes pass  → HTTP 200
-    degraded → some probes fail → HTTP 503
-    unhealthy→ all probes fail  → HTTP 503
-
-Supports:
-    - Kubernetes liveness (GET /v1/health)
-    - Kubernetes readiness (GET /v1/ready)
-    - Individual probe status for dashboards
-"""
+"""Three-state health aggregator with pluggable probes."""
 
 from __future__ import annotations
 
-import asyncio
-import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable
-
-logger = logging.getLogger(__name__)
-
-ProbeFunc = Callable[[], Awaitable[bool]]
+from enum import StrEnum
+from pathlib import Path
+from typing import Any, Protocol
 
 
-@dataclass(frozen=True)
-class ProbeResult:
-    name: str
-    healthy: bool
-    latency_ms: float
-    detail: str = ""
+class HealthStatus(StrEnum):
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
 
 
-@dataclass
-class HealthAggregator:
-    """
-    Collects named health probes and runs them in parallel.
+class HealthProbe(Protocol):
+    @property
+    def name(self) -> str: ...
 
-    Usage:
-        health = HealthAggregator()
-        health.register("neo4j", check_neo4j)
-        health.register("redis", check_redis)
-        health.register("domain_loader", check_domains)
+    def check(self) -> tuple[HealthStatus, str]: ...
 
-        result = await health.check_all()
-        # → {"status": "healthy", "checks": {...}, "latency_ms": 42.1}
-    """
 
-    _probes: dict[str, ProbeFunc] = field(default_factory=dict)
-    timeout_seconds: float = 5.0
-
-    def register(self, name: str, probe: ProbeFunc) -> None:
-        """Register a named health probe."""
-        self._probes[name] = probe
-        logger.debug("Health probe registered: %s", name)
-
-    def deregister(self, name: str) -> None:
-        """Remove a probe (for testing / dynamic reconfiguration)."""
-        self._probes.pop(name, None)
-
-    async def check_all(self) -> dict[str, Any]:
-        """
-        Run all probes concurrently with timeout.
-        Returns aggregated health status.
-        """
-        if not self._probes:
-            return {
-                "status": "healthy",
-                "checks": {},
-                "latency_ms": 0.0,
-                "probe_count": 0,
-            }
-
-        start = time.perf_counter()
-        results = await asyncio.gather(
-            *(self._run_probe(name, fn) for name, fn in self._probes.items()),
-            return_exceptions=False,
-        )
-        total_ms = (time.perf_counter() - start) * 1000
-
-        checks = {r.name: {"healthy": r.healthy, "latency_ms": r.latency_ms, "detail": r.detail} for r in results}
-        all_healthy = all(r.healthy for r in results)
-        any_healthy = any(r.healthy for r in results)
-
-        if all_healthy:
-            status = "healthy"
-        elif any_healthy:
-            status = "degraded"
-        else:
-            status = "unhealthy"
-
-        return {
-            "status": status,
-            "checks": checks,
-            "latency_ms": round(total_ms, 2),
-            "probe_count": len(results),
-        }
-
-    async def check_one(self, name: str) -> ProbeResult:
-        """Run a single named probe."""
-        fn = self._probes.get(name)
-        if fn is None:
-            return ProbeResult(name=name, healthy=False, latency_ms=0, detail="probe not registered")
-        return await self._run_probe(name, fn)
-
-    async def _run_probe(self, name: str, fn: ProbeFunc) -> ProbeResult:
-        start = time.perf_counter()
-        try:
-            healthy = await asyncio.wait_for(fn(), timeout=self.timeout_seconds)
-            latency = (time.perf_counter() - start) * 1000
-            return ProbeResult(name=name, healthy=bool(healthy), latency_ms=round(latency, 2))
-        except asyncio.TimeoutError:
-            latency = (time.perf_counter() - start) * 1000
-            logger.warning("Health probe %s timed out after %.0fms", name, latency)
-            return ProbeResult(name=name, healthy=False, latency_ms=round(latency, 2), detail="timeout")
-        except Exception as exc:
-            latency = (time.perf_counter() - start) * 1000
-            logger.warning("Health probe %s failed: %s", name, exc)
-            return ProbeResult(name=name, healthy=False, latency_ms=round(latency, 2), detail=str(exc))
+class DatabaseProbe:
+    def __init__(self, db_path: str) -> None:
+        self._db_path = db_path
 
     @property
-    def probe_names(self) -> list[str]:
-        return sorted(self._probes.keys())
+    def name(self) -> str:
+        return "database"
+
+    def check(self) -> tuple[HealthStatus, str]:
+        import sqlite3
+
+        try:
+            conn = sqlite3.connect(self._db_path, timeout=2)
+            conn.execute("SELECT 1")
+            conn.close()
+            return HealthStatus.HEALTHY, "ok"
+        except Exception as exc:  # pragma: no cover - defensive
+            return HealthStatus.UNHEALTHY, str(exc)
+
+
+class ContractsProbe:
+    def __init__(self, contracts_dir: str) -> None:
+        self._contracts_dir = contracts_dir
+
+    @property
+    def name(self) -> str:
+        return "contracts"
+
+    def check(self) -> tuple[HealthStatus, str]:
+        path = Path(self._contracts_dir)
+        if not path.is_dir():
+            return HealthStatus.UNHEALTHY, f"{self._contracts_dir} not found"
+        yamls = list(path.glob("*.yaml"))
+        if not yamls:
+            return HealthStatus.DEGRADED, "no contract files found"
+        return HealthStatus.HEALTHY, f"{len(yamls)} contracts loaded"
+
+
+class HealthAggregator:
+    def __init__(self, *, service_name: str, version: str) -> None:
+        self._service_name = service_name
+        self._version = version
+        self._probes: list[HealthProbe] = []
+        self._start_time = time.monotonic()
+        self._ready = False
+
+    def register_probe(self, probe: HealthProbe) -> None:
+        self._probes.append(probe)
+
+    def set_ready(self) -> None:
+        self._ready = True
+
+    def evaluate(self) -> dict[str, Any]:
+        probe_results: dict[str, Any] = {}
+        worst = HealthStatus.HEALTHY
+        for probe in self._probes:
+            status, detail = probe.check()
+            probe_results[probe.name] = {"status": status.value, "detail": detail}
+            if status == HealthStatus.UNHEALTHY:
+                worst = HealthStatus.UNHEALTHY
+            elif status == HealthStatus.DEGRADED and worst != HealthStatus.UNHEALTHY:
+                worst = HealthStatus.DEGRADED
+        if not self._ready:
+            worst = HealthStatus.UNHEALTHY
+        return {
+            "status": worst.value,
+            "service": self._service_name,
+            "version": self._version,
+            "uptime_seconds": round(time.monotonic() - self._start_time, 2),
+            "ready": self._ready,
+            "probes": probe_results,
+        }

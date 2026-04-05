@@ -1,26 +1,32 @@
+"""Domain action execution service with tenant scoping."""
+
 from __future__ import annotations
 
-from engine.config.loader import SpecLoader
-from engine.core.result import ActionResult
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class ActionService:
-    def __init__(self, spec_loader: SpecLoader | None = None) -> None:
-        self._spec_loader = spec_loader or SpecLoader()
+    def __init__(self, *, allowed_actions: list[str]) -> None:
+        self._allowed_actions = set(allowed_actions)
 
-    def execute_action(self, action_name: str, parameters: dict) -> dict:
-        allowed_actions = set(self._spec_loader.action_names())
-        accepted = action_name in allowed_actions
-        result = ActionResult(
-            accepted=accepted,
-            action_name=action_name,
-            parameters=parameters,
-        )
-        return result.to_dict()
-
-    def describe(self) -> dict:
-        spec = self._spec_loader.load()
+    def execute_action(self, action_name: str, parameters: dict[str, Any], *, tenant: str) -> dict[str, Any]:
+        if action_name not in self._allowed_actions:
+            raise ValueError(f"Action not allowed: {action_name}")
+        logger.info("Executing action", extra={"action": action_name, "tenant": tenant})
         return {
-            "service": spec.service.name,
-            "actions": [action.name for action in spec.actions],
+            "action": action_name,
+            "tenant": tenant,
+            "result": "executed",
+            "parameters_received": sorted(parameters.keys()),
+        }
+
+    def describe_action(self, action_name: str, *, tenant: str) -> dict[str, Any]:
+        return {
+            "action": action_name,
+            "tenant": tenant,
+            "allowed": action_name in self._allowed_actions,
+            "available_actions": sorted(self._allowed_actions),
         }
