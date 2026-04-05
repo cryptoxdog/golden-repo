@@ -1,37 +1,57 @@
+"""L9 engine action handlers — async handlers with payload validation."""
+
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+from typing import Any
 
-from engine.compliance.prohibited_factors import contains_prohibited_factors
-from engine.config.loader import SpecLoader
-from engine.core.errors import EngineError
-from engine.models.action_models import DescribePayload, ExecuteActionPayload
+from pydantic import BaseModel, Field
+
+from chassis.actions import register_handlers
 from engine.services.action_service import ActionService
 
-Handler = Callable[[str, dict], dict]
+logger = logging.getLogger(__name__)
+
+_service: ActionService | None = None
 
 
-def register_all(registrar: dict[str, Handler] | None = None) -> dict[str, Handler]:
-    registry = registrar if registrar is not None else {}
-    registry["execute"] = handle_execute
-    registry["describe"] = handle_describe
-    return registry
+class ExecutePayload(BaseModel):
+    action_name: str | None = None
+    action: str | None = None
+    parameters: dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
-async def handle_execute(tenant: str, payload: dict) -> dict:
-    validated = ExecuteActionPayload.model_validate(payload)
-    if contains_prohibited_factors(validated.parameters):
-        raise EngineError(
-            action="execute",
-            tenant=tenant,
-            client_message="Payload contains prohibited factors",
-            detail="Prohibited keys are not permitted in execute payloads",
-        )
-    service = ActionService(SpecLoader())
-    return service.execute_action(validated.action_name, validated.parameters)
+class DescribePayload(BaseModel):
+    action_name: str = "describe"
 
 
-async def handle_describe(tenant: str, payload: dict) -> dict:
-    DescribePayload.model_validate(payload)
-    service = ActionService(SpecLoader())
-    return service.describe()
+def init_service(*, allowed_actions: list[str]) -> None:
+    global _service
+    _service = ActionService(allowed_actions=allowed_actions)
+    logger.info("ActionService initialized", extra={"allowed_actions": allowed_actions})
+
+
+def _get_service() -> ActionService:
+    if _service is None:
+        raise RuntimeError("ActionService not initialized — call init_service() first")
+    return _service
+
+
+async def handle_execute(tenant: str, payload: dict[str, Any]) -> dict[str, Any]:
+    request = ExecutePayload.model_validate(payload)
+    service = _get_service()
+    action_name = request.action_name or request.action or "execute"
+    parameters = request.parameters or request.data
+    return service.execute_action(action_name, parameters, tenant=tenant)
+
+
+async def handle_describe(tenant: str, payload: dict[str, Any]) -> dict[str, Any]:
+    request = DescribePayload.model_validate(payload)
+    service = _get_service()
+    return service.describe_action(request.action_name, tenant=tenant)
+
+
+def register_all() -> None:
+    register_handlers({"execute": handle_execute, "describe": handle_describe})
+    logger.info("All engine handlers registered")
