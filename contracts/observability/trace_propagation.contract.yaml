@@ -1,0 +1,84 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, observability]
+# tags: [L9_TEMPLATE, observability, otel, tracing]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.trace_propagation
+  title: Trace Propagation — OpenTelemetry over TransportPacket
+  version: 1.0.0
+  status: canonical
+
+authority: sdk_and_transport_contract
+
+core_rule: >-
+  OpenTelemetry propagation is owned by the SDK and transport contract.
+  Nodes may enrich traces with attributes and child spans; nodes must not
+  redefine propagation semantics or workflow authority boundaries.
+
+required_trace_fields:
+  - header.trace_id
+
+optional_trace_fields:
+  - header.span_id
+  - header.trace_flags
+  - header.tracestate
+
+trace_field_rules:
+  - header.trace_id_must_be_preserved_across_derivation
+  - header.trace_flags_must_be_preserved_if_present
+  - header.tracestate_must_be_preserved_if_present
+  - header.span_id_may_change_only_when_new_boundary_span_is_created
+  - missing_trace_id_generates_new_valid_trace_id
+  - malformed_trace_context_replaced_with_new_valid_trace_and_diagnostic_by_default
+
+ownership_split:
+  sdk_owns:
+    - trace_context_extraction
+    - trace_context_injection
+    - span_creation_at_transport_boundaries
+    - transport_metrics_emission
+    - hop_timing_capture
+    - propagation_consistency
+  gate_owns:
+    - preserving_inbound_trace_context
+    - creating_gate_dispatch_spans
+    - annotating_routing_events
+    - preserving_trace_across_dispatch
+  orchestrator_owns:
+    - creating_workflow_decision_spans
+    - adding_workflow_attributes_to_spans
+    - correlating_trace_context_with_workflow_state
+  runtime_owns:
+    - creating_execution_spans
+    - creating_validation_spans
+    - adding_execution_attributes_and_events
+    - emitting_execution_metrics
+  governance_owns:
+    - observability_contract_enforcement
+    - forbidden_behavior_detection
+
+required_transport_spans:
+  - gate_ingress
+  - gate_dispatch
+  - node_receive
+  - node_handler
+  - node_emit
+
+minimum_common_attributes:
+  - trace_id
+  - node_name
+  - action
+  - tenant_id
+  - packet_type
+  - root_id
+
+forbidden:
+  - detached_async_trace_forks_without_governed_policy
+  - replacing_valid_inbound_trace_id
+  - using_trace_data_as_hidden_control_plane

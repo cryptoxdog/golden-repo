@@ -1,0 +1,61 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, governance, compliance]
+# tags: [L9_TEMPLATE, compliance, prohibited_factors]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.prohibited_factors
+  title: Prohibited Factors — Compile-Time Compliance Block
+  version: 1.0.0
+  status: canonical
+
+definition: >-
+  Fields that MUST NOT influence routing, gating, scoring, or matching decisions.
+  Enforcement is at compile time during gate/scoring validation — never a runtime check.
+
+prohibited_fields:
+  - race
+  - ethnicity
+  - religion
+  - gender
+  - age
+  - disability
+  - familial_status
+  - national_origin
+  - marital_status
+  - genetic_information
+
+enforcement:
+  layer: compile_time
+  mechanism: gate_compiler_validation
+  on_violation:
+    - fail_compilation
+    - emit_audit_event
+    - reject_domain_spec
+  audit_on_violation: true
+
+allowed_uses:
+  - non_decision_observability        # e.g., aggregate fairness metrics, opt-in
+  - compliance_reporting              # never to make a decision
+  - explicit_consented_research       # under separate governance review
+
+related_controls:
+  pii_handling:
+    declared_in: domain_spec.compliance.pii.fields
+    modes: [hash, encrypt, redact, tokenize]
+    key_source: [env, vault, kms]
+    never_logged: true
+
+audit_record_shape:
+  - timestamp
+  - tenant.org_id
+  - actor
+  - violating_field
+  - source_file
+  - source_line
+  - rejection_reason
