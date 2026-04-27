@@ -1,0 +1,72 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, transport, migration]
+# tags: [L9_TEMPLATE, migration, transport_packet]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.migration.packet_envelope_to_transport_packet
+  title: PacketEnvelope → TransportPacket Migration
+  version: 1.0.0
+  status: canonical
+  applies_to: l9.transport_packet@1.0.0
+
+status_table:
+  PacketEnvelope: superseded
+  TransportPacket: canonical
+
+mandatory_steps:
+  - replace_envelope_creation_with_canonical_transport_packet_creation
+  - remove_all_node_to_node_calls
+  - route_all_follow_up_traffic_node_to_gate_to_node
+  - add_and_validate_provenance_fields
+  - update_handlers_to_accept_transport_packet_and_return_transport_packet
+  - enforce_idempotency_key_for_critical_flows
+  - require_hop_trace_presence_and_growth
+  - bind_runtime_validation_to_transport_packet_schema_json
+
+common_failures:
+  - partial_migration
+  - mixed_envelope_models
+  - missing_provenance
+  - direct_dispatch
+  - raw_execute_dict_posting
+  - gate_acquiring_workflow_state
+
+validation_checklist:
+  - all_requests_use_transport_packet
+  - no_direct_node_to_node_calls
+  - hop_trace_present
+  - hop_trace_growing
+  - idempotency_enforced_where_required
+  - replay_protection_active
+  - gate_remains_workflow_stateless
+  - orchestrator_owns_workflow_state
+  - runtime_nodes_are_execution_only
+
+backward_compatibility_policy:
+  legacy_packet_envelope_support:
+    default: false
+    allowed_only_if:
+      - explicitly_scoped_adapter
+      - isolated_compatibility_boundary
+      - never_reintroduced_as_canonical
+  forbidden_after_migration:
+    - packet_envelope_as_ingress_truth
+    - packet_envelope_as_runtime_truth
+    - mixed_transport_models
+    - mission_kernel_inside_runtime_nodes
+    - direct_raw_execute_payload_posting
+
+handler_signature_migration:
+  before: "async def handler(envelope: PacketEnvelope) -> dict"
+  after:  "async def handler(packet: TransportPacket) -> TransportPacket"
+
+dual_read_window:
+  duration: one_release_cycle
+  adapter_location: chassis/legacy/packet_envelope_adapter.py
+  removal_trigger: all_consumers_report_transport_packet_v1_0_0

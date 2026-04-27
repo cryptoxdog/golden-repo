@@ -1,0 +1,79 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, runtime]
+# tags: [L9_TEMPLATE, runtime, execution, canonical]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.runtime
+  title: Runtime — Execution-Only Node
+  version: 1.0.0
+  status: canonical
+
+identity: pure_execution_unit
+ingress: TransportPacket
+egress: TransportPacket
+
+handler_contract:
+  signature: "async def handler(packet: TransportPacket) -> TransportPacket"
+
+authority_model:
+  role: execution_only
+  must:
+    - validate_packet
+    - execute_action_handler
+    - return_response_packet
+    - enforce_resource_budgets
+    - preserve_trace_context
+    - respect_concurrency_limits
+  must_not:
+    - decide_next_workflow_step
+    - trigger_retries_or_compensation
+    - perform_routing
+    - maintain_workflow_control
+    - call_other_nodes_directly
+    - call_gate_bypassing_sdk
+    - emit_follow_up_packets_without_orchestrator_authority
+
+state_model:
+  bounded_state_only: true
+  allowed_local_state:
+    - execution_local_state
+    - caches
+    - model_or_session_state
+    - tool_state
+  forbidden_state:
+    - workflow_dag
+    - cross_step_orchestration_state
+    - replay_authority
+    - compensation_authority
+    - authoritative_workflow_truth
+
+execution_properties:
+  - isolated
+  - bounded
+  - deterministic_where_possible
+  - stateless_where_possible
+
+module_ownership:
+  execution:
+    - agent_executor.py
+    - resource_budget.py
+    - state_manager.py
+  memory:
+    - semantic_retriever.py
+    - episodic_store.py
+  scaling:
+    - autoscaler.py
+    - pool_manager.py
+
+guarantees:
+  - respect_resource_limits
+  - return_explicit_success_or_failure
+  - include_diagnostics
+  - preserve_trace_context
+  - hop_trace_appended_with_node_name
