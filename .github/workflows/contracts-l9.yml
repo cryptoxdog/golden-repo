@@ -56,16 +56,22 @@ jobs:
         run: python scripts/verify_l9_contracts.py
 
       - name: Verify legacy contract manifest (SHA + references)
-        # Non-blocking until the legacy manifest is reconciled with the L9
-        # docs/contracts scaffold. Tracked as a follow-up to the contracts CI
-        # wiring branch. The L9 meta-schema verifier above is the required gate.
+        # Non-blocking until the legacy 20-contract manifest is reconciled with
+        # the L9 docs/contracts scaffold. Tracked as a follow-up ticket.
+        # The L9 meta-schema verifier above is the required gate.
         continue-on-error: true
         run: python tools/verify_contracts.py
 
       - name: Install repository for alignment script
+        # The alignment script imports from the `app` package, so the repo must
+        # be installed first. We install with the dev extra; if that fails we
+        # fall back to the bare install. A complete install failure is fatal.
         run: |
           if [ -f pyproject.toml ]; then
-            python -m pip install -e ".[dev]" || python -m pip install -e "." || echo "NOTE: package install skipped; alignment script may degrade."
+            python -m pip install -e ".[dev]" \
+              || python -m pip install -e "."
+          else
+            echo "NOTE: pyproject.toml not present; skipping editable install."
           fi
 
       - name: Validate canonical contract alignment with service manifest
@@ -82,11 +88,13 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "## L9 contracts verify summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Meta-schema validation: \`scripts/verify_l9_contracts.py\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Legacy SHA manifest:    \`tools/verify_contracts.py\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Manifest alignment:     \`scripts/validate_contract_alignment.py\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- L9_META headers:        \`scripts/check_l9_meta_headers.py\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "All four checks must be green for merge." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## L9 contracts verify summary"
+            echo
+            echo "- Meta-schema validation: \`scripts/verify_l9_contracts.py\`"
+            echo "- Legacy SHA manifest:    \`tools/verify_contracts.py\` (advisory)"
+            echo "- Manifest alignment:     \`scripts/validate_contract_alignment.py\`"
+            echo "- L9_META headers:        \`scripts/check_l9_meta_headers.py\`"
+            echo
+            echo "All required checks must be green for merge."
+          } >> "$GITHUB_STEP_SUMMARY"

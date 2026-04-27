@@ -52,10 +52,15 @@ invariants:
   - signature_optional_but_strongly_recommended_for_cross_org_delegation
 
 scope_lattice:
-  description: scopes form a partial order; child grants must be ≤ parent grants.
+  description: scopes form a partial order; child grants must be narrower than or equal to parent grants.
+  ordering_symbol: "<="
   examples:
-    - "execute:match" ≤ "execute:*"
-    - "read:org:acme" ≤ "read:org:*"
+    - child: "execute:match"
+      parent: "execute:*"
+      relation: "<="
+    - child: "read:org:acme"
+      parent: "read:org:*"
+      relation: "<="
 
 enforcement_points:
   - gate_ingress_validator
@@ -63,7 +68,11 @@ enforcement_points:
   - orchestrator_step_authorization_check
 
 failure_modes:
-  - empty_chain_when_required:           reject_with(reason="DELEGATION_REQUIRED")
-  - expired_grant:                       reject_with(reason="DELEGATION_EXPIRED")
-  - scope_widening_violation:            reject_with(reason="SCOPE_WIDENING_FORBIDDEN")
-  - missing_root_originator_match:       reject_with(reason="DELEGATION_ROOT_MISMATCH")
+  - code: empty_chain_when_required
+    reject_reason: DELEGATION_REQUIRED
+  - code: expired_grant
+    reject_reason: DELEGATION_EXPIRED
+  - code: scope_widening_violation
+    reject_reason: SCOPE_WIDENING_FORBIDDEN
+  - code: missing_root_originator_match
+    reject_reason: DELEGATION_ROOT_MISMATCH

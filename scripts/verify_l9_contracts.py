@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Validate every L9 canonical contract YAML against the meta-schema.
 
-This verifier is the runtime check for the L9 docs/contracts scaffold added by
-the `chore/l9-docs-contracts-scaffold` branch. It is intentionally separate
-from `tools/verify_contracts.py`, which validates the *legacy* contract
-manifest (SHA-256 + cursorrules/CLAUDE.md references).
+This verifier is the runtime check for the L9 docs/contracts scaffold. It is
+intentionally separate from `tools/verify_contracts.py`, which validates the
+*legacy* contract manifest (SHA-256 + cursorrules/CLAUDE.md references).
 
 Behaviour:
   * Walks `contracts/**/*.contract.yaml`.
   * Validates every file against `contracts/_schemas/l9_contract_meta.schema.json`.
-  * Asserts the L9_META block is present and well-formed.
-  * Checks for prohibited references to the superseded `PacketEnvelope` as a
-    canonical type (allowed only inside the migration contract).
+  * Asserts the L9_META block is present in either of the two canonical forms:
+      - inline:  `# L9_META: ...`
+      - block:   `# --- L9_META ---\n# key: value\n...\n# --- /L9_META ---`
+  * Asserts that no file (other than the migration contract) declares the
+    superseded `PacketEnvelope` as canonical.
 
 Exit codes:
   0 = all canonical contracts pass, OR no canonical contracts present yet.
@@ -44,7 +45,13 @@ CONTRACTS_DIR = REPO_ROOT / "contracts"
 META_SCHEMA = CONTRACTS_DIR / "_schemas" / "l9_contract_meta.schema.json"
 MIGRATION_CONTRACT = CONTRACTS_DIR / "transport" / "migration_from_packet_envelope.contract.yaml"
 
-L9_META_RE = re.compile(r"^\s*#\s*L9_META\s*:?", re.MULTILINE)
+# Canonical YAML L9_META forms accepted:
+#   - inline:  "# L9_META: ..."
+#   - block:   "# --- L9_META ---" (with matching close fence on later line)
+L9_META_INLINE_RE = re.compile(r"^\s*#\s*L9_META\s*:", re.MULTILINE)
+L9_META_BLOCK_OPEN_RE = re.compile(r"^\s*#\s*-{2,}\s*L9_META\s*-{2,}\s*$", re.MULTILINE)
+L9_META_BLOCK_CLOSE_RE = re.compile(r"^\s*#\s*-{2,}\s*/L9_META\s*-{2,}\s*$", re.MULTILINE)
+
 PACKET_ENVELOPE_CANONICAL_RE = re.compile(
     r"\bcanonical\s*:\s*PacketEnvelope\b", re.IGNORECASE
 )
@@ -65,7 +72,13 @@ def _load_meta_schema() -> dict[str, Any]:
 
 def _has_l9_meta_header(path: Path) -> bool:
     text = path.read_text(encoding="utf-8")
-    return bool(L9_META_RE.search(text))
+    if L9_META_INLINE_RE.search(text):
+        return True
+    open_match = L9_META_BLOCK_OPEN_RE.search(text)
+    if not open_match:
+        return False
+    close_match = L9_META_BLOCK_CLOSE_RE.search(text, pos=open_match.end())
+    return bool(close_match)
 
 
 def _check_packet_envelope_violation(path: Path) -> bool:
@@ -114,9 +127,9 @@ def main() -> int:
     for path in contract_files:
         rel = path.relative_to(REPO_ROOT)
 
-        # 1. L9_META header must be present.
+        # 1. L9_META header must be present in inline or block form.
         if not _has_l9_meta_header(path):
-            fails.append(f"FAIL: {rel} is missing the L9_META header")
+            fails.append(f"FAIL: {rel} is missing the L9_META header (accepted forms: inline `# L9_META:` or block `# --- L9_META ---`)")
             continue
 
         # 2. YAML must parse and be a mapping.

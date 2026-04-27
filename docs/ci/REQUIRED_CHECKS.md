@@ -1,13 +1,12 @@
-<!--
-L9_META:
-  l9_schema: 1
-  origin: l9-template
-  engine: golden-repo
-  layer: ci
-  tags: [ci, branch-protection, required-checks, governance]
-  owner: platform
-  status: active
--->
+<!-- L9_META
+l9_schema: 1
+origin: l9-template
+engine: golden-repo
+layer: [docs, ci]
+tags: [L9_TEMPLATE, ci, branch-protection, required-checks, governance]
+owner: platform
+status: active
+/L9_META -->
 
 # Required CI checks
 
@@ -51,17 +50,70 @@ Apply these settings on `main`:
 - Require linear history: **enabled**.
 - Lock branch (no force-push, no deletion): **enabled**.
 
+## L9_META header — accepted forms
+
+The `check_l9_meta_headers.py` enforcer accepts the following canonical forms.
+Both are equivalent; choose one per file. New files **should** use the block
+form.
+
+### Markdown
+
+Block form (preferred for the L9 docs scaffold):
+
+```markdown
+<!-- L9_META
+l9_schema: 1
+origin: l9-template
+engine: golden-repo
+layer: [docs]
+tags: [L9_TEMPLATE, docs, index]
+owner: platform
+status: active
+/L9_META -->
+```
+
+Inline form (legacy-compatible):
+
+```markdown
+<!-- L9_META: l9_schema=1; origin=l9-template; engine=golden-repo; ... -->
+```
+
+### YAML (contracts)
+
+Block form (preferred for `contracts/**/*.contract.yaml`):
+
+```yaml
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, transport]
+# tags: [L9_TEMPLATE, contracts, canonical]
+# owner: platform
+# status: active
+# --- /L9_META ---
+```
+
+Inline form (legacy-compatible):
+
+```yaml
+# L9_META: l9_schema=1; origin=l9-template; engine=golden-repo; ...
+```
+
+The verifier looks for either form within the first 80 lines of the file.
+
 ## What each L9 check enforces
 
 ### `L9 contracts verify (required)`
 Walks `contracts/**/*.contract.yaml` and validates every file against
 `contracts/_schemas/l9_contract_meta.schema.json`. Asserts:
-- L9_META header present.
+- L9_META header present (block or inline form).
 - YAML is well-formed and matches the meta-schema.
 - No file (other than the migration contract) declares `PacketEnvelope` as
   canonical — TransportPacket is canonical per ADR-0001.
 
-Runs `tools/verify_contracts.py` for the legacy SHA-manifest, then runs
+Runs `tools/verify_contracts.py` for the legacy SHA-manifest (advisory until
+the legacy 20-contract manifest is reconciled), then runs
 `scripts/validate_contract_alignment.py` against the service manifest.
 
 Finally runs `scripts/check_l9_meta_headers.py` to ensure every doc and
@@ -84,13 +136,14 @@ Run before pushing:
 ```bash
 python scripts/verify_l9_contracts.py
 python scripts/check_l9_meta_headers.py
-python tools/verify_contracts.py
+python tools/verify_contracts.py        # currently advisory
 python scripts/validate_contract_alignment.py --repo-root . \
   --manifest templates/service/service.manifest.yaml
 pytest tests/contracts -q
 ```
 
-All five must exit zero.
+All five must exit zero (the legacy verifier is advisory until reconciliation
+is complete).
 
 ## Operational notes
 

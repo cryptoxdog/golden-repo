@@ -6,12 +6,14 @@ Scope:
   * contracts/**/*.yaml (contracts and contract docs)
   * Any directory README.md added by the L9 scaffold.
 
-Behaviour:
-  * For Markdown files, look for an HTML comment opening `<!-- L9_META:` near
-    the top of the file.
-  * For YAML files, look for a YAML comment line `# L9_META:` near the top.
-  * Files explicitly listed in EXEMPTIONS are skipped (legacy or third-party
-    artifacts that pre-date the L9 scaffold).
+Accepted header forms:
+  * Markdown inline:  `<!-- L9_META: ... -->`
+  * Markdown block:   `<!-- L9_META\\n key: value\\n /L9_META -->` (the canonical form)
+  * YAML inline:      `# L9_META: ...`
+  * YAML block:       `# --- L9_META ---\\n# key: value\\n# --- /L9_META ---` (the canonical form)
+
+Files explicitly listed in EXEMPTIONS are skipped (legacy or third-party
+artifacts that pre-date the L9 scaffold).
 
 Tolerant mode:
   * If `docs/` and `contracts/` are both empty of in-scope files, exit 0.
@@ -29,11 +31,19 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Look for the header within the first ~40 lines of the file.
-HEADER_WINDOW_LINES = 40
+# Look for the header within the first ~80 lines of the file. The block-form
+# Markdown header in this repo can take up to ~10 lines on its own.
+HEADER_WINDOW_LINES = 80
 
-MD_HEADER_RE = re.compile(r"<!--\s*\n?\s*L9_META\s*:", re.MULTILINE)
-YAML_HEADER_RE = re.compile(r"^\s*#\s*L9_META\s*:?", re.MULTILINE)
+# Markdown forms.
+MD_INLINE_RE = re.compile(r"<!--\s*L9_META\s*:")
+MD_BLOCK_OPEN_RE = re.compile(r"<!--\s*\n?\s*L9_META\b")
+MD_BLOCK_CLOSE_RE = re.compile(r"/L9_META\s*-->")
+
+# YAML forms.
+YAML_INLINE_RE = re.compile(r"^\s*#\s*L9_META\s*:", re.MULTILINE)
+YAML_BLOCK_OPEN_RE = re.compile(r"^\s*#\s*-{2,}\s*L9_META\s*-{2,}\s*$", re.MULTILINE)
+YAML_BLOCK_CLOSE_RE = re.compile(r"^\s*#\s*-{2,}\s*/L9_META\s*-{2,}\s*$", re.MULTILINE)
 
 # Files that pre-date the L9 scaffold and are not required to carry the header.
 # Paths are POSIX-style relative to repo root.
@@ -94,15 +104,35 @@ def _is_exempt(path: Path) -> bool:
     return any(rel.startswith(prefix) for prefix in EXEMPT_PREFIXES)
 
 
+def _md_has_header(text: str) -> bool:
+    if MD_INLINE_RE.search(text):
+        return True
+    open_match = MD_BLOCK_OPEN_RE.search(text)
+    if not open_match:
+        return False
+    close_match = MD_BLOCK_CLOSE_RE.search(text, pos=open_match.end())
+    return bool(close_match)
+
+
+def _yaml_has_header(text: str) -> bool:
+    if YAML_INLINE_RE.search(text):
+        return True
+    open_match = YAML_BLOCK_OPEN_RE.search(text)
+    if not open_match:
+        return False
+    close_match = YAML_BLOCK_CLOSE_RE.search(text, pos=open_match.end())
+    return bool(close_match)
+
+
 def _check(path: Path) -> tuple[bool, str]:
     head = _read_window(path)
     suffix = path.suffix.lower()
     if suffix == ".md":
-        ok = bool(MD_HEADER_RE.search(head))
-        return ok, "missing <!-- L9_META: ... --> block in first 40 lines"
+        ok = _md_has_header(head)
+        return ok, "missing L9_META block (inline `<!-- L9_META: ... -->` or block `<!-- L9_META ... /L9_META -->`)"
     if suffix in {".yaml", ".yml"}:
-        ok = bool(YAML_HEADER_RE.search(head))
-        return ok, "missing '# L9_META:' comment in first 40 lines"
+        ok = _yaml_has_header(head)
+        return ok, "missing L9_META block (inline `# L9_META:` or block `# --- L9_META --- ... # --- /L9_META ---`)"
     return True, "unsupported suffix; skipped"
 
 
