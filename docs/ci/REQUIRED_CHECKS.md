@@ -114,7 +114,8 @@ Walks `contracts/**/*.contract.yaml` and validates every file against
 
 Runs `tools/verify_contracts.py` for the legacy SHA-manifest (advisory until
 the legacy 20-contract manifest is reconciled), then runs
-`scripts/validate_contract_alignment.py` against the service manifest.
+`scripts/validate_contract_alignment.py` against the service manifest
+(also advisory — see note below).
 
 Finally runs `scripts/check_l9_meta_headers.py` to ensure every doc and
 contract carries the L9_META header.
@@ -142,8 +143,23 @@ python scripts/validate_contract_alignment.py --repo-root . \
 pytest tests/contracts -q
 ```
 
-All five must exit zero (the legacy verifier is advisory until reconciliation
-is complete).
+All five must exit zero (the legacy verifier and the service-manifest
+alignment script are advisory until reconciliation is complete — see below).
+
+### Why `validate_contract_alignment.py` is advisory
+
+The legacy alignment script (`scripts/validate_contract_alignment.py`)
+dereferences `manifest['service']['protocol_version']`, expecting the
+service manifest to nest its keys under a `service:` wrapper. The current
+`templates/service/service.manifest.yaml` exposes those keys at the top
+level (`service_name`, `package_name`, `app_module`, ...). Reconciling
+the two — either by updating the script to read flat keys or by adding
+the `service:` wrapper to the template — is tracked separately and is
+outside the scope of the L9 canonical contracts gate, which is solely
+responsible for asserting the L9 meta-schema, L9_META headers, and
+canonical-type discipline. After reconciliation, drop
+`continue-on-error: true` from the alignment step in
+`.github/workflows/contracts-l9.yml` to promote it to blocking.
 
 ## Operational notes
 
