@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://l9.platform/contracts/_schemas/l9_contract_meta.schema.json",
+  "title": "L9 Contract Meta-Schema",
+  "description": "Every L9 contract YAML must validate against this meta-schema.",
+  "type": "object",
+  "required": ["contract"],
+  "properties": {
+    "contract": {
+      "type": "object",
+      "required": ["id", "title", "version", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^l9\\.[a-z0-9_]+(\\.[a-z0-9_]+)*$"
+        },
+        "title": { "type": "string" },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "canonical", "superseded"]
+        },
+        "supersedes": { "type": "array", "items": { "type": "string" } },
+        "applies_to": { "type": "string" },
+        "authoritative_schema": { "type": "string" }
+      }
+    }
+  }
+}

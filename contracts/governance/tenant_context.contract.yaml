@@ -1,0 +1,72 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, governance]
+# tags: [L9_TEMPLATE, governance, tenant]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.tenant_context
+  title: Tenant Context — Multi-Tenancy Isolation Contract
+  version: 1.0.0
+  status: canonical
+
+definition: >-
+  TenantContext binds every TransportPacket to an organization, an actor, and a delegation chain.
+  It is immutable across derivation and is the basis for all isolation, audit, and compliance.
+
+fields:
+  actor:
+    type: string
+    required: true
+    semantics: who is performing the action right now
+  on_behalf_of:
+    type: string
+    required: true
+    semantics: who authorized this action
+  originator:
+    type: string
+    required: true
+    semantics: who started the chain (root of authority)
+  org_id:
+    type: string
+    required: true
+    semantics: tenant isolation key — every data store scopes by this
+  user_id:
+    type: string
+    required: false
+
+invariants:
+  - immutable_across_derivation
+  - org_id_never_null
+  - actor_never_null
+  - cross_tenant_reads_forbidden
+  - cross_tenant_writes_forbidden
+
+resolution_priority:
+  - x_domain_key_header
+  - x_tenant_key_header
+  - subdomain
+  - api_key_prefix
+  - envelope_explicit_override
+
+isolation_model:
+  default: database_per_tenant
+  alternatives:
+    - labeled_partition
+    - row_level_security
+  rule: chosen_isolation_model_is_per_repo_decision_documented_in_adr
+
+audit:
+  every_packet_logs:
+    - packet_id
+    - org_id
+    - actor
+    - on_behalf_of
+    - originator
+    - action
+    - timestamp
+  retention: governed_by_packet_governance_retention_days
