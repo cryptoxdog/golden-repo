@@ -44,6 +44,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from starlette.middleware.base import BaseHTTPMiddleware
+
+# ADR-0003: principal_id propagation. Two new chassis surfaces.
+#   * `principal_middleware` runs after auth, before tenant binding.
+#   * `install_pii_processors` prepends the structlog hashing processor so
+#     no log record can ship a raw `principal_id` to a sink.
+from chassis.middleware import principal_middleware
+from chassis.logging import install_pii_processors
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +269,33 @@ def create_app(
             allow_credentials=False,
             allow_methods=["POST", "GET"],
             allow_headers=["*"],
+        )
+
+    # --- principal_id materialisation (ADR-0003) ----------------------------
+    #
+    # Position in the middleware chain: after authentication, before tenant
+    # binding. Starlette/FastAPI applies registered middleware in reverse
+    # registration order, so this is added between the auth and tenant calls
+    # at the chassis registration site. When the auth middleware has not been
+    # attached on a particular deployment (e.g. local dev), the materialiser
+    # passes through with `principal_id=None`. See ADR-0003 for the full
+    # rollout plan and the feature flag `tenant_ctx.principal_id`.
+    application.add_middleware(BaseHTTPMiddleware, dispatch=principal_middleware)
+
+    # --- structlog PII discipline (ADR-0003) --------------------------------
+    #
+    # Prepend the principal_id hashing processor to whatever processor chain
+    # the application already configured. We re-apply on every build_app call
+    # so additional processors registered by the engine layer are preserved.
+    try:
+        import structlog  # imported lazily to avoid a hard import-time dep
+
+        existing_processors = list(structlog.get_config().get("processors", []))
+        structlog.configure(processors=install_pii_processors(existing_processors))
+    except ImportError:  # pragma: no cover - structlog is in pyproject
+        logger.warning(
+            "chassis_app: structlog not importable; PII processor for principal_id "
+            "is NOT installed. Compliance posture is degraded; install structlog."
         )
 
     # --- POST /v1/execute  (single ingress) ---------------------------------

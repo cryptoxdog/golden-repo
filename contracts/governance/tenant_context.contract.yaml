@@ -38,6 +38,20 @@ fields:
   user_id:
     type: string
     required: false
+  principal_id:
+    type: string
+    required: false
+    semantics: >-
+      verified caller identity, materialised once at the chassis (after auth,
+      before tenant binding) and propagated unchanged on every derived
+      TransportPacket. Never serialised raw to log sinks; the structlog
+      processor `chassis.logging.hash_principal_id_processor` replaces this
+      field with `principal_id_hash` (SHA-256 hex) before emission.
+    pii: hashed
+    rollout:
+      r0_r2: optional behind feature flag `tenant_ctx.principal_id`
+      r3: required (see ADR-0003 and forthcoming ADR-0004 promotion)
+    adr: docs/adr/0003-principal-id-on-tenant-context.md
 
 invariants:
   - immutable_across_derivation
@@ -45,6 +59,7 @@ invariants:
   - actor_never_null
   - cross_tenant_reads_forbidden
   - cross_tenant_writes_forbidden
+  - principal_id_never_logged_raw
 
 resolution_priority:
   - x_domain_key_header
@@ -69,4 +84,10 @@ audit:
     - originator
     - action
     - timestamp
+    - principal_id_hash
   retention: governed_by_packet_governance_retention_days
+  pii_handling:
+    principal_id:
+      at_rest: hashed
+      in_logs: hashed
+      in_memory: raw_inside_request_scope_only

@@ -1,15 +1,18 @@
-"""
---- L9_META ---
-l9_schema: 1
-origin: chassis
-engine: "*"
-layer: [api]
-tags: [chassis, middleware, observability, security, engine-agnostic]
-owner: platform-team
-status: active
---- /L9_META ---
+# --- L9_META ---
+# l9_schema: 1
+# origin: chassis
+# engine: "*"
+# layer: [api]
+# tags: [chassis, middleware, observability, security, engine-agnostic]
+# owner: platform
+# status: active
+# --- /L9_META ---
+"""chassis/middleware — Reusable FastAPI Middleware Stack.
 
-chassis/middleware.py — Reusable FastAPI Middleware Stack
+This package replaces the legacy ``chassis/middleware.py`` single-module
+form. All previously-exported symbols remain importable at the same path
+(``from chassis.middleware import RequestIDMiddleware`` etc.) so no caller
+needs to change. ADR-0003 records the conversion.
 
 Every L9 constellation node needs the same cross-cutting concerns:
     - Request ID injection (W3C traceparent)
@@ -17,6 +20,8 @@ Every L9 constellation node needs the same cross-cutting concerns:
     - Tenant extraction + validation
     - Security headers
     - Structured request logging
+    - **Principal-id materialisation** (NEW; ADR-0003) — runs after auth,
+      before tenant binding.
 
 Zero engine imports.
 """
@@ -32,15 +37,27 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from chassis.middleware.principal import principal_middleware
+
+__all__ = [
+    "RequestIDMiddleware",
+    "TimingMiddleware",
+    "SecurityHeadersMiddleware",
+    "StructuredLogMiddleware",
+    "apply_chassis_middleware",
+    "principal_middleware",
+]
+
 logger = logging.getLogger(__name__)
 
 
 # ── Request ID / Trace Propagation ────────────────────────────────────
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
-    """
-    Injects X-Request-ID and X-Trace-ID headers.
-    Propagates inbound trace headers (W3C traceparent) if present.
+    """Inject ``X-Request-ID`` and ``X-Trace-ID`` headers.
+
+    Propagates inbound trace headers (W3C ``traceparent``) when present;
+    otherwise mints fresh ids.
     """
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -65,9 +82,9 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
 # ── Request Timing ────────────────────────────────────────────────────
 
 class TimingMiddleware(BaseHTTPMiddleware):
-    """
-    Measures request duration and sets X-Process-Time-Ms header.
-    Also logs slow requests (> threshold_ms).
+    """Measure request duration; set ``X-Process-Time-Ms`` header.
+
+    Logs requests slower than ``slow_threshold_ms``.
     """
 
     def __init__(self, app, slow_threshold_ms: float = 2000.0):
@@ -96,10 +113,7 @@ class TimingMiddleware(BaseHTTPMiddleware):
 # ── Security Headers ──────────────────────────────────────────────────
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """
-    Adds standard security headers to every response.
-    OWASP baseline for API services.
-    """
+    """Add standard security headers to every response (OWASP API baseline)."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         response = await call_next(request)
@@ -114,8 +128,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 # ── Structured Request Logger ─────────────────────────────────────────
 
 class StructuredLogMiddleware(BaseHTTPMiddleware):
-    """
-    Emits one structured JSON log line per request.
+    """Emit one structured JSON log line per request.
+
     Compatible with Datadog, Splunk, ELK, CloudWatch.
     """
 
@@ -151,11 +165,12 @@ def apply_chassis_middleware(
     security_headers: bool = True,
     structured_logging: bool = True,
 ) -> None:
-    """
-    Apply the full L9 chassis middleware stack to a FastAPI app.
+    """Apply the full L9 chassis middleware stack to a FastAPI app.
+
     Order matters: outermost middleware listed first.
 
-    Usage (in chassis/app.py create_app):
+    Usage (in ``chassis/chassis_app.py`` ``build_app``)::
+
         from chassis.middleware import apply_chassis_middleware
         apply_chassis_middleware(application)
     """

@@ -1,5 +1,21 @@
-"""Action-to-node resolution for the L9 Constellation Runtime."""
-from constellation.types import SNAKE, ConstellationError
+# --- L9_META ---
+# l9_schema: 1
+# origin: golden-repo
+# engine: golden-repo
+# layer: [chassis]
+# tags: [chassis, action_registry]
+# owner: platform
+# status: active
+# --- /L9_META ---
+"""Action-to-node resolution for the L9 Constellation Runtime.
+
+ADR-0003 incidental fix: the legacy import ``from constellation.types import
+SNAKE, ConstellationError`` referenced a package (``constellation``) that
+was renamed to ``chassis`` before PR #28 was merged but never updated
+here, leaving the module unimportable. The symbols live at
+``chassis.types`` today.
+"""
+from chassis.types import SNAKE, ConstellationError
 
 ACTION_MAP: dict[str, str] = {}
 _HANDLERS: dict[str, callable] = {}
