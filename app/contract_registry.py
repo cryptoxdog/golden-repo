@@ -33,17 +33,20 @@ class ContractBundle:
 
     @property
     def mandatory_endpoints(self) -> tuple[str, ...]:
-        endpoints = self.conformant_node['runtime_surfaces']['mandatory_http_surfaces']
-        return tuple(str(v['path']) for v in endpoints)
+        # YAML key is 'required_http_surfaces', not 'runtime_surfaces.mandatory_http_surfaces'
+        surfaces = self.conformant_node['required_http_surfaces']
+        return tuple(str(v['path']) for v in surfaces)
 
     @property
     def mandatory_service_env(self) -> tuple[str, ...]:
-        values = self.conformant_node['deployment']['required_environment_variables']
+        # YAML key is 'required_configuration', a flat list of strings
+        values = self.conformant_node['required_configuration']
         return tuple(str(v) for v in values)
 
     @property
     def required_registration_fields(self) -> tuple[str, ...]:
-        values = self.node_registration['registration_contract']['required_fields']
+        # YAML key is 'registration_object.required_fields', not 'registration_contract.required_fields'
+        values = self.node_registration['registration_object']['required_fields']
         return tuple(str(v) for v in values)
 
 
