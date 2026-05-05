@@ -15,6 +15,7 @@ def register_all(registrar: dict[str, Handler] | None = None) -> dict[str, Handl
     registry = registrar if registrar is not None else {}
     registry["execute"] = handle_execute
     registry["describe"] = handle_describe
+    registry["health"] = handle_health
     return registry
 
 
@@ -28,10 +29,10 @@ async def handle_execute(tenant: str, payload: dict) -> dict:
             detail="Prohibited keys are not permitted in execute payloads",
         )
     service = ActionService(SpecLoader())
-    return service.execute_action(validated.action_name, validated.parameters)
+    return await service.execute_action(validated.action_name, validated.parameters)
 
 
 async def handle_describe(tenant: str, payload: dict) -> dict:
     DescribePayload.model_validate(payload)
     service = ActionService(SpecLoader())
-    return service.describe()
+    return await service.describe()
