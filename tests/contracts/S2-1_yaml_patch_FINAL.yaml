@@ -1,0 +1,53 @@
+# ============================================================
+# Phase 0 Stage 2 — TODO S2-1: Real Substrate Pairs
+#
+# ALREADY INTEGRATED into repository_contract_pairs.yaml.
+# This file is retained as a standalone reference of the 3 pairs
+# that were added to the catalog.
+#
+# CORRECTED VALUES (Gap 3 fix):
+# - insert_semantic_embedding.scope uses actual CallerScope enum
+# - insert_semantic_fact.tier uses actual MemoryTier enum
+# - insert_knowledge_fact.subject allows __dynamic_only__ sentinel
+# ============================================================
+
+# --- Substrate pairs (active enforcement) ---
+- method: "insert_semantic_embedding"
+  param: "scope"
+  param_position: 3
+  allowed_literals:
+    - "developer"
+    - "global"
+    - "cursor"
+    - "l-private"
+    - "agent"
+  dynamic_policy: "hybrid_warn"
+  baseline_callsites: null   # S2-6: set after first baseline scan
+  drift_threshold_percent: 25
+  severity: "error"
+  description: "Semantic embedding scope must be a known CallerScope value"
+
+- method: "insert_semantic_fact"
+  param: "tier"
+  param_position: 5
+  allowed_literals:
+    - "identity"
+    - "project"
+    - "session"
+    - "general"
+  dynamic_policy: "hybrid_warn"
+  baseline_callsites: null
+  drift_threshold_percent: 25
+  severity: "error"
+  description: "Semantic fact tier must be a valid MemoryTier value"
+
+- method: "insert_knowledge_fact"
+  param: "subject"
+  param_position: 0
+  allowed_literals:
+    - "__dynamic_only__"  # No static allowlist — drift tracking only
+  dynamic_policy: "hybrid_warn"
+  baseline_callsites: null
+  drift_threshold_percent: 25
+  severity: "warning"
+  description: "Knowledge fact subject tracking (drift baseline only, no static enforcement)"
