@@ -1,0 +1,133 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, orchestrator]
+# tags: [L9_TEMPLATE, orchestrator, workflow, canonical]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.orchestrator
+  title: Orchestrator — Workflow Authority Node
+  version: 1.0.0
+  status: canonical
+
+identity: normal_node_from_gate_perspective
+
+authority_model:
+  role: workflow_authority
+  must:
+    - decompose_tasks_into_steps
+    - sequence_execution
+    - manage_branching_logic
+    - define_retry_semantics
+    - define_replay_semantics
+    - define_compensation_semantics
+    - merge_results
+    - produce_terminal_outcomes
+  must_not:
+    - route_packets_directly
+    - bypass_gate
+    - own_transport_logic
+    - admission_control
+    - private_node_registry
+
+transport_boundary:
+  ingress: TransportPacket
+  egress: TransportPacket_via_GateClient
+
+state_model:
+  workflow_state: required
+  durability: required
+  replayable: required
+  auditable: required
+  owned_state:
+    - workflow_dag
+    - step_state
+    - execution_history
+    - replay_state
+    - compensation_state
+    - terminal_outcomes
+    - mission_state
+    - checkpoint_state
+
+execution_model:
+  loop:
+    - receive_transport_packet
+    - load_or_create_workflow_state
+    - evaluate_next_step_or_steps
+    - emit_subtask_transport_packet_via_gate
+    - update_state
+    - repeat_until_terminal
+  invariants:
+    - all_subtask_dispatch_goes_through_gate
+    - preserve_trace_id
+    - preserve_lineage
+    - no_arbitrary_trace_forking
+    - no_hidden_workflow_state
+
+module_ownership:
+  engine:
+    - orchestration_engine.py
+    - condition_evaluator.py
+    - decomposability_classifier.py
+    - payload_transformer.py
+    - deadline_propagator.py
+  compensation:
+    - saga_manager.py
+    - checkpoint_store.py
+  schemas:
+    - workflow.py
+  config:
+    - workflows.yaml
+    - orchestrator_settings.py
+  api:
+    - main.py
+    - transport_adapter.py
+
+mission_kernel:
+  location: orchestrator_only
+  ownership: exclusive
+  responsibilities:
+    - load_or_create_mission_state
+    - checkpoint
+    - restore
+    - branch
+    - merge
+    - aggregate
+    - decide_next_step
+  forbidden_outside_orchestrator:
+    - gate
+    - runtime_nodes
+    - gate_client
+
+forbidden_crossings:
+  - direct_runtime_node_calls
+  - custom_transport_routing_logic
+  - private_node_registry
+  - admission_control
+  - gate_bypass
+  - special_semantic_ingress_as_architectural_identity
+
+integration_rules:
+  - all_outbound_packets_go_through_gate
+  - use_sdk_transport_layer
+  - preserve_trace_id_and_lineage
+  - never_fork_traces_arbitrarily
+
+registration_example:
+  orchestrator:
+    internal_url: "http://orchestrator:8001"
+    supported_actions:
+      - research_report
+      - multi_step_analysis
+      - workflow_execute
+      - plan_and_solve
+    priority_class: P0
+    max_concurrent: 20
+    health_endpoint: /v1/health
+    timeout_ms: 300000
+    metadata:
+      node_type: orchestrator

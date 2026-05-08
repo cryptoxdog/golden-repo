@@ -1,0 +1,144 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, gate]
+# tags: [L9_TEMPLATE, gate, boundary, canonical]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.gate
+  title: Gate — Workflow-Stateless Transport Authority
+  version: 1.0.0
+  status: canonical
+
+authority_model:
+  role: workflow_stateless_transport_authority
+  must:
+    - validate_incoming_transport_packet
+    - resolve_destination_via_routing_policy
+    - enforce_admission
+    - dispatch_via_transport_adapter
+    - return_transport_packet_response
+  allowed_decisions:
+    - routing
+    - admission
+    - resilience
+  must_not:
+    - make_workflow_decisions
+    - perform_decomposition
+    - branching_logic
+    - retry_semantics
+    - replay_semantics
+    - compensation_semantics
+
+state_model:
+  workflow_state: forbidden
+  allowed_operational_state:
+    - node_registry_cache
+    - circuit_breaker_state
+    - rate_limiter_state
+    - load_shedding_state
+    - backpressure_state
+    - idempotency_state
+    - replay_guard_state
+  state_properties:
+    - bounded
+    - non_authoritative
+    - discardable_without_semantic_loss
+
+single_execute_path:
+  reference_implementation: |
+    async def execute(packet: TransportPacket) -> TransportPacket:
+        validate(packet)
+        node = route(packet.header.action)
+        await admit(node)
+        response = await dispatch(node, packet)
+        return build_response(response)
+  invariants:
+    - one_path_only
+    - no_branch_on_workflow_vs_non_workflow
+    - no_branch_on_node_type
+    - no_inspection_of_payload_for_semantic_meaning
+
+module_ownership:
+  must_exist:
+    boundary:
+      - ingress_validator.py
+      - routing_policy.py
+      - context_injector.py        # strictly structural
+      - transport_codec.py
+      - response_factory.py        # strictly structural
+      - failure_factory.py         # strictly structural
+    resilience:
+      - circuit_breaker.py
+      - rate_limiter.py
+      - load_shedding.py
+      - backpressure.py
+      - admission_controller.py
+      - replay_guard.py
+      - idempotency.py
+    routing:
+      - node_registry.py
+      - dispatcher.py
+    schemas:
+      - packet.py
+      - registry.py
+    runtime:
+      - lifecycle.py
+      - http_client.py
+      - health.py
+    config:
+      - settings.py
+      - node_registry.yaml
+      - priorities.yaml
+
+forbidden_modules_in_gate:
+  - orchestration/
+  - schemas/workflow.py
+  - config/workflows.yaml
+  - boundary/workflow_dispatcher.py
+  - any_workflow_classifier
+  - any_semantic_replay_or_compensation_factory
+
+forbidden_state:
+  - workflow_schemas
+  - workflow_configs
+  - workflow_dag_logic
+  - step_state
+  - replay_meaning
+  - compensation_meaning
+
+forbidden_crossings:
+  - branch_on_is_workflow
+  - treat_orchestrator_specially
+  - bypass_routing_policy
+  - hold_workflow_dag
+  - hold_mission_state
+
+orchestrator_treatment: |
+  Orchestrator MUST be registered in NodeRegistry and treated as a normal node.
+  Gate MUST NOT have any code that distinguishes orchestrator from runtime nodes.
+
+ci_enforcement_rules:
+  build_must_fail_if:
+    - workflow_logic_in_gate
+    - PacketEnvelope_imports_in_gate
+    - direct_node_to_node_calls
+    - raw_http_posts_to_execute_bypass_gate_client
+    - packet_mutation_without_derive
+    - routing_policy_bypassed
+    - handler_signature_not_transport_packet_to_transport_packet
+    - transport_packet_schema_validation_missing_at_gate_ingress
+    - node_registration_supported_actions_empty
+  required_checks:
+    - transport_packet_schema_validation
+    - routing_policy_architecture_tests
+    - no_direct_node_calls_scan
+    - no_packet_envelope_scan
+    - gate_statelessness_checks
+    - gate_client_only_execute_entry_check
+    - hop_trace_and_lineage_tests
+    - idempotency_and_replay_tests

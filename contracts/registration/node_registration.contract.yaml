@@ -1,0 +1,91 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, registration]
+# tags: [L9_TEMPLATE, registration, node]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.node_registration
+  title: Node Registration Contract
+  version: 1.0.0
+  status: canonical
+
+endpoint:
+  path: /v1/admin/register
+  method: POST
+  authentication: gate_admin_credential
+
+payload_shape: top_level_json_object_keyed_by_node_name
+
+required_fields:
+  - internal_url
+  - supported_actions
+
+optional_fields:
+  - priority_class
+  - max_concurrent
+  - health_endpoint
+  - timeout_ms
+  - metadata
+  - public_url
+  - capability_descriptor
+  - protocol_compatibility
+  - node_class
+  - trust_tier
+  - deployment_region
+  - version
+
+field_definitions:
+  internal_url:
+    type: string
+    required: true
+    constraints: [absolute_url]
+    semantics: Primary route target used by Gate.
+  supported_actions:
+    type: array<string>
+    required: true
+    constraints: [non_empty, lowercase_snake_case]
+  priority_class:
+    type: string
+    enum: [P0, P1, P2, P3]
+    default: P2
+  max_concurrent:
+    type: integer
+    minimum: 1
+    default: 8
+  health_endpoint:
+    type: string
+    default: /v1/health
+  timeout_ms:
+    type: integer
+    minimum: 100
+    default: 30000
+  metadata:
+    type: object
+    description: Free-form metadata; reserved keys 'node_type', 'region', 'version'.
+
+rules:
+  - node_names_normalized_to_lowercase
+  - supported_actions_must_be_non_empty
+  - internal_url_must_be_absolute
+  - gate_is_authoritative_for_activation_and_health_state
+  - registration_may_be_rejected_if_overwrite_false_and_node_exists
+  - orchestrator_registers_as_a_normal_node
+
+example:
+  enrichment-engine:
+    internal_url: "http://enrichment-engine:8001"
+    supported_actions:
+      - enrich
+      - enrichment_request
+    priority_class: P1
+    max_concurrent: 16
+    health_endpoint: /v1/health
+    timeout_ms: 60000
+    metadata:
+      node_type: runtime
+      version: 1.4.2

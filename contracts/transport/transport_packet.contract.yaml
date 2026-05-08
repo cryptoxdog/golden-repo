@@ -1,0 +1,238 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, transport]
+# tags: [L9_TEMPLATE, contracts, transport_packet, canonical]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.transport_packet
+  title: TransportPacket — Canonical Execution Contract
+  version: 1.0.0
+  status: canonical
+  supersedes:
+    - l9.packet_envelope
+    - l9.agent_packet
+    - raw_execute_payloads
+  authoritative_schema: contracts/transport/transport_packet.schema.json
+
+invariants:
+  - TransportPacket is the only canonical network execution contract.
+  - All external execution enters through Gate.
+  - Tenant context is immutable across derived packets.
+  - Packets evolve by derivation, never mutation.
+  - transport_hash signs the canonical envelope without hop_trace.
+  - payload_hash signs the canonical payload only.
+  - lineage must remain reconstructable from any derived packet.
+  - hop_trace is append-only and tamper-evident.
+
+construction_rules:
+  immutable_execution_record: true
+  in_place_mutation: forbidden
+  semantic_change_requires: derive
+  observational_route_journal_requires: with_hop
+
+packet:
+  required_sections:
+    - header
+    - address
+    - tenant
+    - payload
+    - security
+    - governance
+    - provenance
+    - delegation_chain
+    - hop_trace
+    - lineage
+    - attachments
+
+  header:
+    required:
+      - packet_id           # UUIDv4 — globally unique
+      - packet_type         # enum below
+      - action              # routing key, lowercase snake_case
+      - priority            # 0..3 (P0..P3)
+      - created_at          # ISO 8601 UTC
+      - timeout_ms          # int, > 0
+      - schema_version      # semver of this contract
+      - retry_count         # int, default 0
+      - replay_mode         # enum: none | replay_request | replay_response
+    optional:
+      - idempotency_key     # gate-enforced dedup
+      - trace_id            # W3C; if absent, SDK generates
+      - span_id
+      - trace_flags
+      - tracestate
+    constraints:
+      packet_type_enum:
+        - request
+        - response
+        - event
+        - command
+        - delegation
+        - failure
+        - replay_request
+        - replay_response
+        - compensation
+      priority_range:
+        min: 0
+        max: 3
+
+  address:
+    required:
+      - source_node         # lowercase, hyphenated
+      - destination_node
+      - reply_to
+
+  tenant:
+    required:
+      - actor               # who is doing it
+      - on_behalf_of        # who authorized it
+      - originator          # who started the chain
+      - org_id              # tenant isolation key
+    optional:
+      - user_id
+
+  payload:
+    type: object
+    description: Action-specific data. The only field that varies per domain.
+    constraints:
+      - must be JSON-serializable
+      - must be the input the destination handler expects
+
+  security:
+    required:
+      - payload_hash        # sha256 of canonical payload
+      - transport_hash      # sha256 of stable packet core (excludes hop_trace)
+      - classification      # public | internal | confidential | restricted
+      - encryption_status   # plaintext | encrypted_at_rest | encrypted_in_transit
+      - pii_fields          # list[str] declared PII paths
+    optional:
+      - transport_signature # detached signature over transport_hash
+      - hop_signature       # optional per-hop signature
+
+  governance:
+    required:
+      - intent              # business intent for audit
+      - compliance_tags     # list[str]
+      - retention_days      # int
+      - redaction_applied   # bool
+      - audit_required      # bool
+
+  provenance:
+    required:
+      - origin_kind         # client | gate | node
+      - requested_action
+      - resolved_by_gate    # bool
+    optional:
+      - original_source_node
+
+  delegation_chain:
+    type: array
+    description: Append-only chain of scoped authorizations.
+    item_required:
+      - delegator
+      - delegate
+      - scope
+      - issued_at
+      - expires_at
+
+  hop_trace:
+    type: array
+    properties:
+      - append_only
+      - tamper_evident
+    item_required:
+      - node_name
+      - received_at
+      - emitted_at
+      - hop_outcome         # received | dispatched | executed | failed
+    excluded_from_transport_hash: true
+
+  lineage:
+    required:
+      - root_id             # UUID of the origin packet
+      - generation          # 0 = root, increments per derive
+      - parent_id           # null for root
+    optional:
+      - derivation_type     # enrichment | inference | match | delegation | response
+
+  attachments:
+    type: array
+    description: Out-of-band references (URIs). Never embed raw blobs.
+    item_required:
+      - uri
+      - sha256
+      - size_bytes
+      - media_type
+
+hashing_and_signatures:
+  payload_hash:
+    algorithm: sha256
+    input: canonical_json(payload)
+  transport_hash:
+    algorithm: sha256
+    input: canonical_json(header + address + tenant + payload + security + governance + provenance + delegation_chain + lineage + attachments + payload_hash)
+    excludes:
+      - hop_trace
+  signature_model:
+    transport_signature:
+      purpose:
+        - sender_authenticity
+        - semantic_packet_integrity
+    hop_signature:
+      optional: true
+      purpose:
+        - hop_level_authenticity
+        - tamper_evident_routing_journal
+
+lineage_rules:
+  root_packet:
+    parent_id: null
+    generation: 0
+    root_id: self.packet_id
+  child_packet:
+    parent_id: parent.packet_id
+    root_id: parent.root_id
+    generation: parent.generation + 1
+
+response_rules:
+  must_be_transport_packet: true
+  preserve_original_packet_id: true
+  reverse_address_direction: true
+  carry_execution_result_in_payload: true
+
+idempotency:
+  location: header.idempotency_key
+  enforcement_owner: gate
+  cache_value: full_response_packet
+  invariant: same_idempotency_key_returns_same_response_packet
+
+replay_protection:
+  identity: header.packet_id
+  enforcement_owner: gate
+  scope: transport_level_duplication
+
+anti_patterns:
+  - direct_node_to_node_calls
+  - in_place_packet_mutation
+  - multiple_transport_schemas
+  - raw_http_execute_calls_with_untyped_dicts
+  - PacketEnvelope_as_active_canonical_contract
+
+ci_enforcement:
+  required_checks:
+    - transport_packet_schema_validation
+    - hop_trace_append_only_tests
+    - lineage_reconstruction_tests
+    - transport_hash_stability_tests
+    - idempotency_and_replay_tests
+  build_must_fail_if:
+    - PacketEnvelope_imports_in_transportpacket_native_repos
+    - direct_node_to_node_calls
+    - raw_http_posts_to_execute_bypass_gate_client
+    - packet_mutation_without_derive
+    - transport_packet_schema_validation_missing
