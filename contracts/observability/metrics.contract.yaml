@@ -1,0 +1,61 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, observability]
+# tags: [L9_TEMPLATE, observability, metrics, prometheus]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.metrics
+  title: L9 Metrics Contract
+  version: 1.0.0
+  status: canonical
+
+emission_target: prometheus_open_metrics
+required_endpoint: GET /metrics
+
+sdk_required_metrics:
+  - transport_packets_received_total
+  - transport_packets_sent_total
+  - transport_packet_failures_total
+  - transport_propagation_failures_total
+  - transport_span_creation_failures_total
+  - transport_hop_duration_ms
+
+gate_required_metrics:
+  - gate_dispatch_latency_ms
+  - gate_routing_failures_total
+  - gate_trace_context_missing_total
+  - gate_admission_denials_total{reason}
+  - gate_circuit_breaker_state{node}
+  - gate_idempotency_cache_hits_total
+
+orchestrator_required_metrics:
+  - orchestrator_workflow_decision_latency_ms
+  - orchestrator_trace_link_failures_total
+  - workflows_started_total
+  - workflows_completed_total{terminal_status}
+  - orchestrator_replay_total{outcome}
+  - orchestrator_compensation_total{outcome}
+
+runtime_required_metrics:
+  - runtime_handler_latency_ms{action}
+  - runtime_handler_failures_total{action,reason}
+  - runtime_resource_budget_exceeded_total{budget_kind}
+  - runtime_concurrent_executions{action}
+
+cardinality_rules:
+  - never_label_with_packet_id
+  - never_label_with_user_id
+  - never_label_with_free_form_strings
+  - tenant_id_label_must_be_org_id_only
+  - action_label_must_be_from_registered_set
+
+slo_targets_default:
+  gate_dispatch_p99_ms: 25
+  runtime_handler_p99_ms: 200
+  workflow_e2e_success_rate: 0.999
+  trace_completeness: 0.995

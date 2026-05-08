@@ -1,0 +1,78 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, governance]
+# tags: [L9_TEMPLATE, governance, delegation]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.delegation_chain
+  title: Delegation Chain — Scoped Multi-Hop Authorization
+  version: 1.0.0
+  status: canonical
+
+definition: >-
+  An append-only ordered list of DelegationGrant entries that scope authority across multi-hop flows.
+  Carried inside every TransportPacket. Every node that further delegates appends a grant.
+
+grant_fields:
+  delegator:
+    type: string
+    required: true
+    semantics: principal granting authority
+  delegate:
+    type: string
+    required: true
+    semantics: principal receiving authority
+  scope:
+    type: array<string>
+    required: true
+    semantics: capability tokens this grant permits
+  issued_at:
+    type: string
+    format: date-time
+    required: true
+  expires_at:
+    type: string
+    format: date-time
+    required: true
+  signature:
+    type: string
+    required: false
+    semantics: optional detached signature over canonical grant
+
+invariants:
+  - append_only
+  - chain_must_root_at_originator
+  - scope_must_only_narrow_or_equal_previous_grant
+  - expired_grants_invalidate_packet
+  - signature_optional_but_strongly_recommended_for_cross_org_delegation
+
+scope_lattice:
+  description: scopes form a partial order; child grants must be narrower than or equal to parent grants.
+  ordering_symbol: "<="
+  examples:
+    - child: "execute:match"
+      parent: "execute:*"
+      relation: "<="
+    - child: "read:org:acme"
+      parent: "read:org:*"
+      relation: "<="
+
+enforcement_points:
+  - gate_ingress_validator
+  - runtime_handler_pre_execute_check
+  - orchestrator_step_authorization_check
+
+failure_modes:
+  - code: empty_chain_when_required
+    reject_reason: DELEGATION_REQUIRED
+  - code: expired_grant
+    reject_reason: DELEGATION_EXPIRED
+  - code: scope_widening_violation
+    reject_reason: SCOPE_WIDENING_FORBIDDEN
+  - code: missing_root_originator_match
+    reject_reason: DELEGATION_ROOT_MISMATCH

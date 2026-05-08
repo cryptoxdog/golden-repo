@@ -1,6 +1,93 @@
-# Critical policy and workflow ownership
-/.github/workflows/* @platform-team
-/tools/review/policy/* @platform-team
-/spec.yaml @platform-team
-/engine/models/* @platform-team
-/engine/handlers.py @platform-team
+# =============================================================================
+# CODEOWNERS — golden-repo
+#
+# Path-scoped review owners. Branch protection on `main` requires at least one
+# matching owner approval per affected path. Last-matching rule wins.
+#
+# Teams referenced here must exist in the cryptoxdog org. If a team does not
+# yet exist, replace with an interim individual handle.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Default owner — every file unless a more specific rule overrides.
+# -----------------------------------------------------------------------------
+*                                       @platform-team
+
+# -----------------------------------------------------------------------------
+# Contracts — the platform's enforcement surface. Two reviews recommended in
+# branch protection (set "Require approvals: 2" with "Require review from
+# Code Owners").
+# -----------------------------------------------------------------------------
+/contracts/                             @platform-team @architecture-team
+/contracts/_schemas/                    @platform-team @architecture-team
+/contracts/transport/                   @platform-team @architecture-team
+/contracts/gate/                        @platform-team @architecture-team
+/contracts/orchestrator/                @platform-team @architecture-team
+/contracts/runtime/                     @platform-team @architecture-team
+/contracts/routing/                     @platform-team @architecture-team
+/contracts/registration/                @platform-team @architecture-team
+/contracts/governance/                  @platform-team @security-team
+/contracts/observability/               @platform-team @sre-team
+
+# Legacy contract files preserved during the migration window.
+/contracts/packet_envelope_v1.yaml      @platform-team @architecture-team
+/contracts/conformant_node_contract.yaml @platform-team @architecture-team
+/contracts/node_registration_contract.yaml @platform-team @architecture-team
+
+# -----------------------------------------------------------------------------
+# Architecture decision records — every ADR requires platform + architecture
+# review.
+# -----------------------------------------------------------------------------
+/docs/adr/                              @platform-team @architecture-team
+
+# -----------------------------------------------------------------------------
+# Docs — companion docs for contracts and the L9 scaffold.
+# -----------------------------------------------------------------------------
+/docs/contracts/                        @platform-team @architecture-team
+/docs/architecture/                     @platform-team @architecture-team
+/docs/boundaries/                       @platform-team @architecture-team
+/docs/agents/                           @platform-team
+/docs/runbooks/                         @sre-team @platform-team
+/docs/security/                         @security-team @platform-team
+/docs/observability/                    @sre-team @platform-team
+/docs/ci/                               @platform-team
+
+# -----------------------------------------------------------------------------
+# Engine and chassis — runtime surfaces.
+# -----------------------------------------------------------------------------
+/chassis/                               @platform-team
+/engine/                                @platform-team
+/engine/handlers.py                     @platform-team
+/engine/models/                         @platform-team
+/engine/security/                       @security-team @platform-team
+/engine/compliance/                     @security-team @platform-team
+
+# -----------------------------------------------------------------------------
+# Tools and scripts that enforce invariants.
+# -----------------------------------------------------------------------------
+/tools/                                 @platform-team
+/tools/auditors/                        @platform-team @security-team
+/tools/review/policy/                   @platform-team
+/scripts/                               @platform-team
+/scripts/verify_l9_contracts.py         @platform-team @architecture-team
+/scripts/check_l9_meta_headers.py       @platform-team
+/scripts/validate_contract_alignment.py @platform-team @architecture-team
+
+# -----------------------------------------------------------------------------
+# CI, deploy, infrastructure.
+# -----------------------------------------------------------------------------
+/.github/                               @platform-team
+/.github/workflows/                     @platform-team @sre-team
+/.github/CODEOWNERS                     @platform-team
+/deploy/                                @sre-team @platform-team
+/infrastructure/                        @sre-team @platform-team
+
+# -----------------------------------------------------------------------------
+# Top-level governance files.
+# -----------------------------------------------------------------------------
+/spec.yaml                              @platform-team @architecture-team
+/README.md                              @platform-team
+/CLAUDE.md                              @platform-team
+/AGENTS.md                              @platform-team
+/.cursorrules                           @platform-team
+/IMPLEMENTATION_NOTE.md                 @platform-team

@@ -1,0 +1,69 @@
+# --- L9_META ---
+# l9_schema: 1
+# origin: l9-template
+# engine: golden-repo
+# layer: [contracts, routing]
+# tags: [L9_TEMPLATE, routing, gate]
+# owner: platform
+# status: active
+# --- /L9_META ---
+
+contract:
+  id: l9.routing_policy
+  title: L9 Routing Policy
+  version: 1.0.0
+  status: canonical
+
+core_rule: all_node_originated_follow_up_traffic_must_return_to_gate
+
+allowed_patterns:
+  - client_to_gate
+  - node_to_gate
+  - gate_to_worker
+
+forbidden_patterns:
+  - node_a_to_node_b
+  - orchestrator_to_worker_direct
+  - worker_to_worker_direct
+
+invariant: workers_must_not_know_peer_urls
+
+node_origin_packet_requirements:
+  provenance:
+    origin_kind: node
+    resolved_by_gate: false
+    original_source_node: local_node
+  address:
+    source_node: local_node
+    destination_node: gate
+
+gate_dispatch_packet_requirements:
+  provenance:
+    origin_kind: gate
+    resolved_by_gate: true
+  address:
+    source_node: gate
+    destination_node: resolved_worker_node
+
+enforcement_points:
+  - sdk_gate_client
+  - gate_ingress_validator
+  - gate_routing_policy_validator
+  - architecture_tests
+
+selection_algorithm:
+  input: header.action
+  resolution:
+    - lookup_action_in_node_registry
+    - filter_by_health_active
+    - filter_by_priority_class_eligibility
+    - apply_admission_controller
+  failure_modes:
+    - action_not_registered:        return failure_packet(reason="UNROUTABLE")
+    - no_healthy_node:              return failure_packet(reason="NODE_UNAVAILABLE")
+    - admission_denied:             return failure_packet(reason="ADMISSION_DENIED")
+
+ci_tests:
+  - tests/contracts/test_no_direct_node_calls.py
+  - tests/contracts/test_node_origin_packet_addresses_gate.py
+  - tests/contracts/test_gate_dispatch_packet_provenance.py

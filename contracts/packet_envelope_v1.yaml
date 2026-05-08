@@ -175,7 +175,7 @@ security:
     - envelope_hash must match canonical envelope JSON excluding signature.
     - restricted packets require audit_required=true.
 
- governance:
+governance:
   intent:
     type: string
     required: true
@@ -195,14 +195,14 @@ security:
     type: string
     required: false
 
- delegation_chain:
+delegation_chain:
   type: list[delegation_link]
   invariants:
     - Scope may narrow but never widen across the chain.
     - Delegated packet action must be allowed by the terminal delegation link.
     - Delegated packet destination must equal terminal delegatee.
 
- hop_trace:
+hop_trace:
   type: list[hop_entry]
   invariants:
     - Hop trace is append-only.

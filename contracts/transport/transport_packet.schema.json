@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://l9.platform/contracts/transport/transport_packet.schema.json",
+  "title": "TransportPacket",
+  "description": "Canonical L9 execution contract. Validated at every gate ingress and node ingress.",
+  "type": "object",
+  "required": [
+    "header",
+    "address",
+    "tenant",
+    "payload",
+    "security",
+    "governance",
+    "provenance",
+    "delegation_chain",
+    "hop_trace",
+    "lineage",
+    "attachments"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "header": {
+      "type": "object",
+      "required": [
+        "packet_id",
+        "packet_type",
+        "action",
+        "priority",
+        "created_at",
+        "timeout_ms",
+        "schema_version",
+        "retry_count",
+        "replay_mode"
+      ],
+      "properties": {
+        "packet_id": { "type": "string", "format": "uuid" },
+        "packet_type": {
+          "type": "string",
+          "enum": [
+            "request",
+            "response",
+            "event",
+            "command",
+            "delegation",
+            "failure",
+            "replay_request",
+            "replay_response",
+            "compensation"
+          ]
+        },
+        "action": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "priority": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "timeout_ms": { "type": "integer", "minimum": 1 },
+        "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "retry_count": { "type": "integer", "minimum": 0 },
+        "replay_mode": {
+          "type": "string",
+          "enum": ["none", "replay_request", "replay_response"]
+        },
+        "idempotency_key": { "type": "string" },
+        "trace_id": { "type": "string" },
+        "span_id": { "type": "string" },
+        "trace_flags": { "type": "string" },
+        "tracestate": { "type": "string" }
+      }
+    },
+    "address": {
+      "type": "object",
+      "required": ["source_node", "destination_node", "reply_to"],
+      "properties": {
+        "source_node": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "destination_node": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "reply_to": { "type": "string" }
+      }
+    },
+    "tenant": {
+      "type": "object",
+      "required": ["actor", "on_behalf_of", "originator", "org_id"],
+      "properties": {
+        "actor": { "type": "string" },
+        "on_behalf_of": { "type": "string" },
+        "originator": { "type": "string" },
+        "org_id": { "type": "string" },
+        "user_id": { "type": ["string", "null"] }
+      }
+    },
+    "payload": { "type": "object" },
+    "security": {
+      "type": "object",
+      "required": [
+        "payload_hash",
+        "transport_hash",
+        "classification",
+        "encryption_status",
+        "pii_fields"
+      ],
+      "properties": {
+        "payload_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "transport_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "classification": {
+          "type": "string",
+          "enum": ["public", "internal", "confidential", "restricted"]
+        },
+        "encryption_status": {
+          "type": "string",
+          "enum": ["plaintext", "encrypted_at_rest", "encrypted_in_transit"]
+        },
+        "pii_fields": { "type": "array", "items": { "type": "string" } },
+        "transport_signature": { "type": ["string", "null"] },
+        "hop_signature": { "type": ["string", "null"] }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "required": [
+        "intent",
+        "compliance_tags",
+        "retention_days",
+        "redaction_applied",
+        "audit_required"
+      ],
+      "properties": {
+        "intent": { "type": "string" },
+        "compliance_tags": { "type": "array", "items": { "type": "string" } },
+        "retention_days": { "type": "integer", "minimum": 0 },
+        "redaction_applied": { "type": "boolean" },
+        "audit_required": { "type": "boolean" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["origin_kind", "requested_action", "resolved_by_gate"],
+      "properties": {
+        "origin_kind": {
+          "type": "string",
+          "enum": ["client", "gate", "node"]
+        },
+        "requested_action": { "type": "string" },
+        "resolved_by_gate": { "type": "boolean" },
+        "original_source_node": { "type": ["string", "null"] }
+      }
+    },
+    "delegation_chain": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["delegator", "delegate", "scope", "issued_at", "expires_at"],
+        "properties": {
+          "delegator": { "type": "string" },
+          "delegate": { "type": "string" },
+          "scope": { "type": "array", "items": { "type": "string" } },
+          "issued_at": { "type": "string", "format": "date-time" },
+          "expires_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "hop_trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["node_name", "received_at", "emitted_at", "hop_outcome"],
+        "properties": {
+          "node_name": { "type": "string" },
+          "received_at": { "type": "string", "format": "date-time" },
+          "emitted_at": { "type": "string", "format": "date-time" },
+          "hop_outcome": {
+            "type": "string",
+            "enum": ["received", "dispatched", "executed", "failed"]
+          },
+          "hop_signature": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "required": ["root_id", "generation", "parent_id"],
+      "properties": {
+        "root_id": { "type": "string", "format": "uuid" },
+        "generation": { "type": "integer", "minimum": 0 },
+        "parent_id": { "type": ["string", "null"], "format": "uuid" },
+        "derivation_type": {
+          "type": ["string", "null"],
+          "enum": [null, "enrichment", "inference", "match", "delegation", "response"]
+        }
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["uri", "sha256", "size_bytes", "media_type"],
+        "properties": {
+          "uri": { "type": "string", "format": "uri" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "size_bytes": { "type": "integer", "minimum": 0 },
+          "media_type": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -7,8 +7,16 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
+concurrency:
+  group: protocol-conformance-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   conformance:
+    name: Protocol conformance (required)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -19,18 +27,21 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.12"
 
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pyyaml pytest
+          python -m pip install "pyyaml>=6.0.1" "jsonschema>=4.21" pytest
 
       - name: Validate canonical contract alignment
         run: python scripts/validate_contract_alignment.py --repo-root . --manifest templates/service/service.manifest.yaml
 
       - name: Validate manifest directly
         run: python deploy/scripts/validate_manifest.py templates/service/service.manifest.yaml
+
+      - name: Verify L9 canonical contracts (meta-schema)
+        run: python scripts/verify_l9_contracts.py
 
       - name: Run contract tests
         run: pytest tests/contracts -q
