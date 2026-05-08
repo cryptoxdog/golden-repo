@@ -1,3 +1,4 @@
+import threading
 """
 Feature Flags System
 P2-3 Implementation: Basic JSON-based feature flags with rollout control
@@ -35,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class FeatureFlags:
+    _reload_lock: threading.Lock = threading.Lock()
     """Feature flag manager with rollout controls."""
 
     def __init__(self, config_path: Optional[str] = None):

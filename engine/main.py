@@ -11,10 +11,9 @@ import structlog
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from engine.settings import Settings
+from engine.config.settings import settings
 
 logger = structlog.get_logger()
-settings = Settings()
 
 app = FastAPI(
     title=settings.app_name,
@@ -27,12 +26,3 @@ app = FastAPI(
 async def health() -> JSONResponse:
     return JSONResponse({"status": "ok", "service": settings.app_name})
 
-
-@app.post("/v1/execute")
-async def execute(payload: dict) -> JSONResponse:
-    """Primary action endpoint. action + tenant + payload envelope."""
-    action = payload.get("action")
-    tenant = payload.get("tenant")
-    logger.info("execute", action=action, tenant=tenant)
-    # TODO: route to your engine handler
-    return JSONResponse({"status": "ok", "action": action, "tenant": tenant})

@@ -1,3 +1,4 @@
+import os
 """
 --- L9_META ---
 l9_schema: 1
@@ -127,7 +128,12 @@ async def execute_action(
 
     # ── Execute ──
     try:
-        engine_data = await handler(tenant, payload)
+        try:
+            engine_data = await asyncio.wait_for(handler(tenant, payload), timeout=HANDLER_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            logger.error("Handler %s timed out after %.1fs", action, HANDLER_TIMEOUT_S)
+            engine_data = {"error": f"handler_timeout after {HANDLER_TIMEOUT_S}s"}
+            status = "failed"
         status = "success"
     except Exception as exc:
         logger.exception("Handler %s failed for tenant=%s", action, tenant)
